@@ -1,0 +1,296 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Marketing Brain</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 820px;
+            margin: 32px auto;
+            padding: 0 16px;
+            color: #1c1c1c;
+        }
+
+        h1 {
+            margin-bottom: 4px;
+        }
+
+        .sub {
+            color: #666;
+            margin-top: 0;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        button {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #999;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        button.primary {
+            background: #1c1c1c;
+            color: #fff;
+            border-color: #1c1c1c;
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: wait;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 6px;
+            border-bottom: 1px solid #eee;
+        }
+
+        input[type=text] {
+            width: 100%;
+            padding: 6px;
+            box-sizing: border-box;
+        }
+
+        #msg {
+            min-height: 1.4em;
+            color: #0a6;
+        }
+
+        #msg.err {
+            color: #c00;
+        }
+
+        .prop {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 8px 0;
+        }
+
+        .prop small {
+            color: #666;
+        }
+
+        #audit td {
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Marketing Brain</h1>
+    <p class="sub">Camera to catalog</p>
+
+    <div class="card">
+        <b>1. Upload a shelf video</b><br><br>
+        <input type="file" id="video" accept="video/*">
+        <button class="primary" id="go" onclick="upload()">Build catalog draft</button>
+    </div>
+
+    <div class="card" id="draft" style="display:none">
+        <b>2. Check the draft</b> <span id="count"></span>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Brand</th>
+                    <th>Category</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+        </table>
+        <button onclick="addRow()">+ Add item</button>
+        <button class="primary" id="approve" onclick="approve()">Approve and import</button>
+    </div>
+    <div class="card">
+        <b>3. Approval queue</b>
+        <button onclick="runPlanner()" id="plan">Run planner</button>
+        <button onclick="loadQueue()">Refresh</button>
+        <div id="queue"></div>
+    </div>
+
+    <div class="card">
+        <b>4. Audit log</b>
+        <button onclick="loadAudit()">Refresh</button>
+        <table id="audit">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Who</th>
+                    <th>Action</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody id="auditRows"></tbody>
+        </table>
+    </div>
+
+    <div id="msg"></div>
+
+    <script>
+        let pid = null;
+        let items = [];
+        const $ = id => document.getElementById(id);
+
+        function say(t, err) { $("msg").textContent = t; $("msg").className = err ? "err" : ""; }
+
+        async function upload() {
+            const f = $("video").files[0];
+            if (!f) return say("Pick a video first.", true);
+            $("go").disabled = true;
+            say("Reading the video... this takes about 30 seconds.");
+            try {
+                const fd = new FormData();
+                fd.append("file", f);
+                const r = await fetch("/catalog/upload", { method: "POST", body: fd });
+                if (!r.ok) throw new Error(await r.text());
+                const d = await r.json();
+                pid = d.proposal_id;
+                items = d.items;
+                render();
+                say("Draft ready. Fix anything wrong, then approve.");
+            } catch (e) { say("Failed: " + e.message, true); }
+            $("go").disabled = false;
+        }
+
+        function render() {
+            $("draft").style.display = "block";
+            $("count").textContent = "(" + items.length + " items)";
+            $("rows").innerHTML = "";
+            items.forEach((it, i) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML =
+                    '<td><input type="text" value="' + esc(it.name) + '" data-i="' + i + '" data-k="name"></td>' +
+                    '<td><input type="text" value="' + esc(it.brand || "") + '" data-i="' + i + '" data-k="brand"></td>' +
+                    '<td><input type="text" value="' + esc(it.category || "") + '" data-i="' + i + '" data-k="category"></td>' +
+                    '<td><button onclick="del(' + i + ')">Delete</button></td>';
+                $("rows").appendChild(tr);
+            });
+            document.querySelectorAll("#rows input").forEach(inp => {
+                inp.oninput = () => { items[inp.dataset.i][inp.dataset.k] = inp.value; };
+            });
+        }
+
+        function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+        function del(i) { items.splice(i, 1); render(); }
+        function addRow() { items.push({ name: "", brand: "", category: "other" }); render(); }
+
+        async function approve() {
+            $("approve").disabled = true;
+            try {
+                const clean = items.filter(it => it.name.trim());
+                let r = await fetch("/catalog/draft/" + pid, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ items: clean }),
+                });
+                if (!r.ok) throw new Error(await r.text());
+                r = await fetch("/proposals/" + pid + "/approve", { method: "POST" });
+                if (!r.ok) throw new Error(await r.text());
+                say("Done: " + clean.length + " products imported.");
+                $("draft").style.display = "none";
+            } catch (e) { say("Failed: " + e.message, true); }
+            $("approve").disabled = false;
+        }
+
+        async function runPlanner() {
+            $("plan").disabled = true;
+            say("Planner is thinking...");
+            try {
+                const r = await fetch("/planner/run", { method: "POST" });
+                if (!r.ok) throw new Error(await r.text());
+                say("Planner proposal added.");
+                loadQueue(); loadAudit();
+            } catch (e) { say("Failed: " + e.message, true); }
+            $("plan").disabled = false;
+        }
+
+        function describe(p) {
+            if (p.kind === "promotion") {
+                return p.payload.picks.map(k =>
+                    "<div><b>" + esc(k.name) + "</b> (" + k.margin_pct + "% margin, " + k.stock + " in stock)<br><small>" +
+                    esc(k.reason) + '</small><br><button onclick="genAd(' + k.id + ')">Generate ad</button></div>').join("");
+            }
+            if (p.kind === "ad_draft") {
+                const d = p.payload;
+                const img = d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;float:left;margin:0 12px 8px 0">' : "<small>(no image)</small>";
+                const vs = d.variants.map(v => {
+                    const flags = (v.flags || []).map(f => '<div style="color:#b45309;font-size:12px">&#9888; ' + esc(f) + "</div>").join("");
+                    return '<div style="margin:6px 0"><b>' + esc(v.headline) + "</b><br>" + esc(v.text) +
+                        " <i>[" + esc(v.cta) + "]</i>" + (v.blocked ? ' <b style="color:#c00">BLOCKED</b>' : "") + flags + "</div>";
+                }).join("");
+                return '<div style="display:flex;gap:14px;align-items:flex-start">' +
+                    (d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;flex:none">' : "") +
+                    "<div><small>" + esc(d.product_name) + " &middot; Rs " + d.daily_budget + "/day budget</small>" + vs + "</div></div>";
+            }
+            if (p.kind === "catalog_draft") return "<small>" + p.payload.items.length + " catalog items</small>";
+            return "<small>" + esc(JSON.stringify(p.payload)).slice(0, 200) + "</small>";
+        }
+
+        async function loadQueue() {
+            const r = await fetch("/proposals?status=pending");
+            const list = await r.json();
+            $("queue").innerHTML = list.length ? "" : "<p><small>Nothing pending.</small></p>";
+            list.forEach(p => {
+                const d = document.createElement("div");
+                d.className = "prop";
+                d.innerHTML = "<b>#" + p.id + " " + esc(p.kind) + "</b><br>" + describe(p) + "<br>" +
+                    '<button class="primary" onclick="decide(' + p.id + ',\'approve\')">Approve</button> ' +
+                    '<button onclick="decide(' + p.id + ',\'reject\')">Reject</button>';
+                $("queue").appendChild(d);
+            });
+        }
+
+        async function decide(id, action) {
+            const r = await fetch("/proposals/" + id + "/" + action, { method: "POST" });
+            const word = action === "approve" ? "approved" : "rejected";
+            say(r.ok ? "Proposal #" + id + " " + word + "." : "Failed: " + await r.text(), !r.ok);
+            loadQueue(); loadAudit();
+        }
+
+        async function loadAudit() {
+            const r = await fetch("/audit?limit=15");
+            const rows = await r.json();
+            $("auditRows").innerHTML = rows.map(a =>
+                "<tr><td>" + esc(a.ts) + "</td><td>" + esc(a.actor) + "</td><td>" +
+                esc(a.action) + "</td><td>" + esc(a.detail || "") + "</td></tr>").join("");
+        }
+
+        loadAudit();
+        loadQueue();
+
+        async function genAd(productId) {
+            say("Writing ad copy and making the image... about 20 seconds.");
+            try {
+                const r = await fetch("/ads/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ product_id: productId, daily_budget: 200 }),
+                });
+                if (!r.ok) throw new Error(await r.text());
+                say("Ad draft added to the queue.");
+                loadQueue(); loadAudit();
+            } catch (e) { say("Failed: " + e.message, true); }
+        }
+    </script>
+</body>
+
+</html>
