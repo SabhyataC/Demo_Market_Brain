@@ -60,6 +60,7 @@ def generate(body: AdIn):
             f'The package label must clearly read "{p["name"]}"'
             + (f' and "{p["brand"]}"' if p["brand"] else "")
             + ", spelled exactly, in clean readable lettering. No other text, no people.",
+            f"static/ads/{fname}",   # ← add this: out_path
         )
         image_url = f"/static/ads/{fname}"
     except Exception as e:
