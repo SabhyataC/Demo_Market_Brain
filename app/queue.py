@@ -4,8 +4,43 @@ from pydantic import BaseModel
 from app.db import get_conn
 from app.audit import log
 from app.budget import check_budget
+from app.products import create_product
+import shutil
+from pathlib import Path
 
 router = APIRouter()
+
+FRAMES_DIR = Path("data/frames")
+PHOTOS_DIR = Path("data/photos")
+
+
+def _num(v) -> float | None:
+    """A non-negative number from owner input like '899' or 899.5, else None."""
+    if v is None or v == "" or isinstance(v, bool):
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    return n if n == n and n >= 0 and n != float("inf") else None
+
+
+def _save_photo(frame_path, product_id: int) -> str | None:
+    """Keep the chosen frame with the product, because the next upload replaces data/frames.
+
+    The path comes from an editable draft, so only files inside data/frames are copied.
+    """
+    if not isinstance(frame_path, str) or not frame_path:
+        return None
+    try:
+        src = Path(frame_path).resolve()
+        if not src.is_file() or FRAMES_DIR.resolve() not in src.parents:
+            return None
+        PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, PHOTOS_DIR / f"{product_id}.jpg")
+        return f"/photos/{product_id}.jpg"
+    except OSError:
+        return None
 
 
 class ProposalIn(BaseModel):
@@ -44,7 +79,20 @@ def _decide(pid: int, status: str):
         if not row:
             raise HTTPException(404, "Proposal not found")
         if status == "approved" and row["kind"] == "ad_draft":
-            check_budget(json.loads(row["payload"]))
+            ad = json.loads(row["payload"])
+            check_budget(ad)
+            variants = ad.get("variants", [])
+            if not variants:
+                raise HTTPException(400, "This ad has no copy left. Add or regenerate it.")
+            if any(v.get("blocked") for v in variants):
+                raise HTTPException(400, "A line breaks the ad rules. Edit or remove it first.")
+            open_lines = [i + 1 for i, v in enumerate(variants)
+                          if any(f.startswith("unsupported claim") for f in v.get("flags", []))
+                          and not v.get("confirmed")]
+            if open_lines:
+                raise HTTPException(
+                    400, f"Lines {open_lines} contain claims we cannot verify. Edit them, remove them, or confirm they are true."
+                )
         if row["status"] != "pending":
             raise HTTPException(400, f"Already {row['status']}")
         conn.execute(
@@ -53,12 +101,22 @@ def _decide(pid: int, status: str):
         )
         if status == "approved" and row["kind"] == "catalog_draft":
             items = json.loads(row["payload"]).get("items", [])
+            added = 0
             for it in items:
-                conn.execute(
-                    "INSERT INTO products (name, brand) VALUES (?, ?)",
-                    (it.get("name"), it.get("brand")),
+                name = (it.get("name") or "").strip() if isinstance(it.get("name"), str) else ""
+                if not name:
+                    continue
+                colour = (it.get("colour") or "").strip() if isinstance(it.get("colour"), str) else ""
+                new_id = create_product(
+                    conn, name, brand=it.get("brand"), category=it.get("category"),
+                    price=_num(it.get("price")), cost=_num(it.get("cost")),
+                    stock=int(_num(it.get("stock")) or 0),
+                    attrs={"colour": colour} if colour else None,
                 )
-            added = len(items)
+                photo = _save_photo(it.get("thumb") or it.get("best_frame"), new_id)
+                if photo:
+                    conn.execute("UPDATE products SET photo = ? WHERE id = ?", (photo, new_id))
+                added += 1
     log("owner", f"proposal_{status}", f"id={pid}")
     if status == "approved" and row["kind"] == "catalog_draft":
         log("owner", "catalog_imported", f"proposal={pid} products={added}")

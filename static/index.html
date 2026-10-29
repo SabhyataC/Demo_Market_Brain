@@ -108,12 +108,10 @@
         <b>2. Check the draft</b> <span id="count"></span>
         <table>
             <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Brand</th>
-                    <th>Category</th>
-                    <th></th>
-                </tr>
+<tr>
+    <th>Photo</th><th>Name</th><th>Brand</th><th>Category</th>
+    <th>Price</th><th>Cost</th><th>Stock</th><th>Check</th><th></th>
+</tr>
             </thead>
             <tbody id="rows"></tbody>
         </table>
@@ -123,7 +121,9 @@
     <div class="card">
         <b>3. Approval queue</b>
         <button onclick="runPlanner()" id="plan">Run planner</button>
+        
         <button onclick="loadQueue()">Refresh</button>
+        <label style="font-size:13px"><input type="checkbox" id="realPhoto"> Use my real product photo in ads instead of a generated image</label>
         <div id="queue"></div>
     </div>
 
@@ -171,32 +171,45 @@
             $("go").disabled = false;
         }
 
-        function render() {
-            $("draft").style.display = "block";
-            $("count").textContent = "(" + items.length + " items)";
-            $("rows").innerHTML = "";
-            items.forEach((it, i) => {
-                const tr = document.createElement("tr");
-                tr.innerHTML =
-                    '<td><input type="text" value="' + esc(it.name) + '" data-i="' + i + '" data-k="name"></td>' +
-                    '<td><input type="text" value="' + esc(it.brand || "") + '" data-i="' + i + '" data-k="brand"></td>' +
-                    '<td><input type="text" value="' + esc(it.category || "") + '" data-i="' + i + '" data-k="category"></td>' +
-                    '<td><button onclick="del(' + i + ')">Delete</button></td>';
-                $("rows").appendChild(tr);
-            });
-            document.querySelectorAll("#rows input").forEach(inp => {
-                inp.oninput = () => { items[inp.dataset.i][inp.dataset.k] = inp.value; };
-            });
-        }
+function render() {
+    $("draft").style.display = "block";
+    const flagged = items.filter(it => (it.check || []).length).length;
+    $("count").textContent = "(" + items.length + " items" + (flagged ? ", " + flagged + " to check" : "") + ")";
+    $("rows").innerHTML = "";
+    const fields = ["name", "brand", "category", "price", "cost", "stock"];
+    items.forEach((it, i) => {
+        const tr = document.createElement("tr");
+        const why = it.check || [];
+        const pic = it.thumb || it.best_frame;
+        const photo = pic
+            ? '<img src="/frames/' + esc(pic.split(/[\\/]/).pop()) + '" style="height:72px;border-radius:6px">' : "";
+        tr.innerHTML = "<td>" + photo + "</td>" +
+            fields.map(k =>
+                '<td><input type="text" value="' + esc(it[k] == null ? "" : it[k]) + '" data-i="' + i + '" data-k="' + k + '"' +
+                (["price", "cost", "stock"].includes(k) ? ' style="width:64px"' : ["name", "brand"].includes(k) ? ' style="min-width:120px"' : ' style="min-width:80px"') + "></td>").join("") +
+            "<td>" + (why.length
+                ? '<span title="' + esc(why.join("; ")) + '" style="color:#b45309;font-size:12px">&#9888; ' + esc(why[0]) + "</span>"
+                : '<span style="color:#0a6">ok</span>') + "</td>" +
+            '<td><button onclick="del(' + i + ')">Delete</button></td>';
+        $("rows").appendChild(tr);
+    });
+    document.querySelectorAll("#rows input").forEach(inp => {
+        inp.oninput = () => { items[inp.dataset.i][inp.dataset.k] = inp.value; };
+    });
+}
 
         function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
         function del(i) { items.splice(i, 1); render(); }
-        function addRow() { items.push({ name: "", brand: "", category: "other" }); render(); }
+        function addRow() { items.push({ name: "", brand: "", category: "other", price: "", cost: "", stock: "", check: [] }); render(); }
 
         async function approve() {
             $("approve").disabled = true;
             try {
-                const clean = items.filter(it => it.name.trim());
+                const num = v => { const n = parseFloat(v); return isFinite(n) && n >= 0 ? n : null; };
+const clean = items.filter(it => (it.name || "").trim()).map(it => ({
+    ...it, price: num(it.price), cost: num(it.cost),
+    stock: num(it.stock) === null ? 0 : Math.floor(num(it.stock)),
+}));
                 let r = await fetch("/catalog/draft/" + pid, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
@@ -229,18 +242,26 @@
                     "<div><b>" + esc(k.name) + "</b> (" + k.margin_pct + "% margin, " + k.stock + " in stock)<br><small>" +
                     esc(k.reason) + '</small><br><button onclick="genAd(' + k.id + ')">Generate ad</button></div>').join("");
             }
-            if (p.kind === "ad_draft") {
-                const d = p.payload;
-                const img = d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;float:left;margin:0 12px 8px 0">' : "<small>(no image)</small>";
-                const vs = d.variants.map(v => {
-                    const flags = (v.flags || []).map(f => '<div style="color:#b45309;font-size:12px">&#9888; ' + esc(f) + "</div>").join("");
-                    return '<div style="margin:6px 0"><b>' + esc(v.headline) + "</b><br>" + esc(v.text) +
-                        " <i>[" + esc(v.cta) + "]</i>" + (v.blocked ? ' <b style="color:#c00">BLOCKED</b>' : "") + flags + "</div>";
-                }).join("");
-                return '<div style="display:flex;gap:14px;align-items:flex-start">' +
-                    (d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;flex:none">' : "") +
-                    "<div><small>" + esc(d.product_name) + " &middot; Rs " + d.daily_budget + "/day budget</small>" + vs + "</div></div>";
-            }
+if (p.kind === "ad_draft") {
+    const d = p.payload;
+    const vs = d.variants.map(v => {
+        const flags = (v.flags || []).map(f => '<div style="color:#b45309;font-size:12px">&#9888; ' + esc(f) + "</div>").join("");
+        const open = (v.flags || []).some(f => f.indexOf("unsupported claim") === 0);
+        return '<div class="adv" style="margin:8px 0">' +
+            '<input type="text" class="h" maxlength="40" value="' + esc(v.headline) + '" style="width:100%;font-weight:bold">' +
+            '<input type="text" class="t" maxlength="125" value="' + esc(v.text) + '" style="width:100%">' +
+            '<input type="hidden" class="c" value="' + esc(v.cta || "Shop Now") + '">' +
+            (v.blocked ? ' <b style="color:#c00">BLOCKED: edit or remove this line</b>' : "") + flags +
+            (open ? '<label style="font-size:12px"><input type="checkbox" class="ok"' + (v.confirmed ? " checked" : "") +
+                '> I confirm these claims are true</label> ' : "") +
+            '<button onclick="this.closest(\'.adv\').remove()">Remove line</button></div>';
+    }).join("");
+    return '<div style="display:flex;gap:14px;align-items:flex-start">' +
+        (d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;flex:none">' : "") +
+        '<div style="flex:1"><small>' + esc(d.product_name) + (d.image_source ? " &middot; image: " + esc(d.image_source) : "") + "</small>" + vs +
+        '<label style="font-size:13px">Daily budget Rs <input type="number" class="bud" min="1" value="' + d.daily_budget + '" style="width:80px"></label> ' +
+        '<button onclick="saveAd(' + p.id + ')">Save changes</button></div></div>';
+}
             if (p.kind === "catalog_draft") return "<small>" + p.payload.items.length + " catalog items</small>";
             return "<small>" + esc(JSON.stringify(p.payload)).slice(0, 200) + "</small>";
         }
@@ -252,6 +273,7 @@
             list.forEach(p => {
                 const d = document.createElement("div");
                 d.className = "prop";
+                d.dataset.pid = p.id;
                 d.innerHTML = "<b>#" + p.id + " " + esc(p.kind) + "</b><br>" + describe(p) + "<br>" +
                     '<button class="primary" onclick="decide(' + p.id + ',\'approve\')">Approve</button> ' +
                     '<button onclick="decide(' + p.id + ',\'reject\')">Reject</button>';
@@ -259,12 +281,29 @@
             });
         }
 
-        async function decide(id, action) {
-            const r = await fetch("/proposals/" + id + "/" + action, { method: "POST" });
-            const word = action === "approve" ? "approved" : "rejected";
-            say(r.ok ? "Proposal #" + id + " " + word + "." : "Failed: " + await r.text(), !r.ok);
-            loadQueue(); loadAudit();
-        }
+        async function saveAd(pid, quiet) {
+    const card = document.querySelector('.prop[data-pid="' + pid + '"]');
+    if (!card || !card.querySelector(".bud")) return true;
+    const variants = [...card.querySelectorAll(".adv")].map(el => ({
+        headline: el.querySelector(".h").value, text: el.querySelector(".t").value,
+        cta: el.querySelector(".c").value, confirmed: !!(el.querySelector(".ok") || {}).checked,
+    }));
+    const r = await fetch("/ads/draft/" + pid, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variants, daily_budget: parseFloat(card.querySelector(".bud").value) }),
+    });
+    if (!r.ok) { say("Failed: " + await r.text(), true); return false; }
+    if (!quiet) { say("Ad #" + pid + " saved."); loadQueue(); loadAudit(); }
+    return true;
+}
+
+async function decide(id, action) {
+    if (action === "approve" && !(await saveAd(id, true))) return;
+    const r = await fetch("/proposals/" + id + "/" + action, { method: "POST" });
+    const word = action === "approve" ? "approved" : "rejected";
+    say(r.ok ? "Proposal #" + id + " " + word + "." : "Failed: " + await r.text(), !r.ok);
+    loadQueue(); loadAudit();
+}
 
         async function loadAudit() {
             const r = await fetch("/audit?limit=15");

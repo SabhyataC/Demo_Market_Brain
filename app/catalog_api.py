@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 import shutil
 from pathlib import Path
 from fastapi import UploadFile, File
+from app.frames import sample_frames, crop_around
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -19,7 +20,16 @@ class VideoIn(BaseModel):
 @router.post("/from-video")
 def from_video(body: VideoIn):
     frames = sample_frames(body.video_path, "data/frames")
-    items = build_catalog(frames)
+    if not frames:
+        raise HTTPException(400, "Could not get any frames from this video")
+    errors: list = []
+    items = build_catalog(frames, errors)
+    if len(errors) == len(frames):
+        raise HTTPException(502, f"The model could not read any frame. First error: {errors[0][1]}")
+    for n, it in enumerate(items, 1):                      # one picture per row, showing only that product
+        thumb = f"data/frames/thumb_{n:03d}.jpg"
+        it["thumb"] = thumb if crop_around(it["best_frame"], it.get("best_x"), thumb) else it["best_frame"]
+    flagged = sum(1 for it in items if it["check"])
     with get_conn() as conn:
         cur = conn.execute(
             "INSERT INTO proposals (kind, payload) VALUES (?, ?)",
@@ -28,10 +38,14 @@ def from_video(body: VideoIn):
         pid = cur.lastrowid
         conn.execute(
             "INSERT INTO audit_log (actor, action, detail) VALUES (?, ?, ?)",
-            ("ai", "catalog_draft_created", f"proposal {pid}, {len(items)} items"),
+            ("ai", "catalog_draft_created",
+             f"proposal {pid}, {len(items)} items, {flagged} to check, "
+             f"{len(frames) - len(errors)}/{len(frames)} frames read"),
         )
-    return {"proposal_id": pid, "count": len(items), "items": items}
-
+    return {
+        "proposal_id": pid, "count": len(items), "items": items,
+        "frames_read": len(frames) - len(errors), "frames_failed": len(errors),
+    }
 class DraftEdit(BaseModel):
     items: list[dict]
 

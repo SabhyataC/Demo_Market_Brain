@@ -1,14 +1,15 @@
 import json
+import re
+import time
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.db import get_conn
 from app.audit import log
-from app.model_client import ask
+from app.model_client import ask, generate_image
 from app.catalog import parse_json_list
 from app.budget import check_budget
-from app.policy import check_variants
-from pathlib import Path
-from app.model_client import generate_image
+from app.policy import check_variants, RULES
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
@@ -16,17 +17,51 @@ PROMPT = """Write 3 different Facebook/Instagram ad copy variants for this produ
 Product: {name}
 Brand: {brand}
 Price: Rs {price}
+Verified facts (the ONLY facts you may state): {facts}
 Each variant must use a different angle (for example: everyday use, gifting,
 treat yourself). Be warm and specific, mention the product by name.
-Allowed: lifestyle and benefit language. Not allowed: health or medical claims,
-guarantees, fake discounts or urgency, invented reviews, statistics, "best" or "#1".
+Do not describe fabric, softness, comfort, fit, quality, durability or any other
+physical attribute unless it is in the verified facts.
+Allowed: lifestyle language about when, where and for whom it is worn or used.
+Not allowed: health or medical claims, guarantees, fake discounts or urgency,
+invented reviews, statistics, "best" or "#1".
 Return ONLY a JSON array, no other text. Each item:
 {{"headline": "max 40 characters", "text": "max 125 characters", "cta": "Shop Now"}}"""
+
+SCENES = {
+    "kurta": "draped over a carved wooden chair beside a sunlit arched window",
+    "saree": "flowing with soft fabric movement against a warm terracotta wall",
+    "jeans": "folded on a weathered leather bench in an urban loft at dusk",
+    "shirt": "hanging on a brass rail in a sunlit boutique",
+}
 
 
 class AdIn(BaseModel):
     product_id: int
     daily_budget: float = 200
+    use_real_photo: bool = False
+
+
+class DraftEdit(BaseModel):
+    daily_budget: float | None = None
+    variants: list[dict] | None = None
+
+
+def pretty_name(name: str) -> str:
+    letters = [c for c in name if c.isalpha()]
+    if letters and all(c.isupper() for c in letters):
+        return name.title()
+    return name
+
+
+def facts_for(p, attrs: dict) -> dict:
+    facts = {"name": pretty_name(p["name"]), "brand": p["brand"], "price": p["price"]}
+    if p["category"]:
+        facts["category"] = p["category"]
+    if p["description"]:
+        facts["description"] = p["description"]
+    facts.update({k: v for k, v in attrs.items() if v})
+    return facts
 
 
 @router.post("/generate")
@@ -34,44 +69,60 @@ def generate(body: AdIn):
     check_budget({"daily_budget": body.daily_budget})
     with get_conn() as conn:
         p = conn.execute(
-            "SELECT id, name, brand, price FROM products WHERE id = ?",
+            "SELECT id, name, brand, price, category, description, photo, attrs FROM products WHERE id = ?",
             (body.product_id,),
         ).fetchone()
     if not p:
         raise HTTPException(404, "Product not found")
 
+    attrs = json.loads(p["attrs"] or "{}")
+    facts = facts_for(p, attrs)
+    name = facts["name"]
+
     variants = parse_json_list(
-        ask(PROMPT.format(name=p["name"], brand=p["brand"] or "n/a", price=p["price"]))
+        ask(PROMPT.format(name=name, brand=p["brand"] or "n/a", price=p["price"],
+                          facts=json.dumps(facts, ensure_ascii=False)))
     )
     variants = [v for v in variants if v.get("headline") and v.get("text")][:3]
     if not variants:
         raise HTTPException(502, "Model returned no usable ad copy, try again")
-    variants = check_variants(
-        variants, {"name": p["name"], "brand": p["brand"], "price": p["price"]}
-    )
+    variants = check_variants(variants, facts)
 
-    Path("static/ads").mkdir(parents=True, exist_ok=True)
-    image_url = None
-    try:
-        fname = f"ad_{p['id']}_{int(__import__('time').time())}.png"
-        generate_image(
-            f"Clean, bright lifestyle product photo for a social media ad: "
-            f"a package of {p['name']} by {p['brand'] or 'a small brand'} on a wooden shelf, soft daylight. "
-            f'The package label must clearly read "{p["name"]}"'
-            + (f' and "{p["brand"]}"' if p["brand"] else "")
-            + ", spelled exactly, in clean readable lettering. No other text, no people.",
-            f"static/ads/{fname}",   # ← add this: out_path
-        )
-        image_url = f"/static/ads/{fname}"
-    except Exception as e:
-        log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
+    image_url, image_source = None, "none"
+    if body.use_real_photo and p["photo"]:
+        image_url, image_source = p["photo"], "real photo"
+    else:
+        colour = (attrs.get("colour") or "").strip()
+        subject = name if colour.lower() in name.lower() else f"{colour} {name}".strip()
+        scene = SCENES.get((p["category"] or "").lower(), "on an elegant textured surface that suits the product")
+        Path("static/ads").mkdir(parents=True, exist_ok=True)
+        try:
+            fname = f"ad_{p['id']}_{int(time.time())}.png"
+            generate_image(
+                f"Cinematic commercial product photograph of a {subject}, the single hero subject, "
+                f"{scene}, centered and in sharp focus, styled like a premium brand campaign shot. "
+                f"Dramatic golden-hour side light with a soft rim light and gentle haze, "
+                f"deep shadows, rich contrast and natural colour grading, "
+                f"shot on an 85mm lens at f/1.8 with shallow depth of field and creamy background bokeh. "
+                f"Moody and aspirational, film-like grain, ultra detailed, photorealistic. "
+                f"Show only the product itself. No packaging, no bag, no box, no label, "
+                f"no text, no logos, no watermark, no people.",
+                f"static/ads/{fname}",
+            )
+            image_url, image_source = f"/static/ads/{fname}", "generated"
+        except Exception as e:
+            log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
+            if p["photo"]:
+                image_url, image_source = p["photo"], "real photo"
 
     payload = {
         "product_id": p["id"],
-        "product_name": p["name"],
+        "product_name": name,
         "daily_budget": body.daily_budget,
         "variants": variants,
         "image_url": image_url,
+        "image_source": image_source,
+        "photo": p["photo"],
     }
     with get_conn() as conn:
         cur = conn.execute(
@@ -79,5 +130,46 @@ def generate(body: AdIn):
             ("ad_draft", json.dumps(payload)),
         )
         pid = cur.lastrowid
-    log("ai", "ad_draft_created", f"id={pid} product={p['id']}")
+    log("ai", "ad_draft_created", f"id={pid} product={p['id']} image={image_source}")
+    return {"proposal_id": pid, **payload}
+
+
+@router.put("/draft/{pid}")
+def edit_ad_draft(pid: int, body: DraftEdit):
+    with get_conn() as conn:
+        row = conn.execute("SELECT status, kind, payload FROM proposals WHERE id = ?", (pid,)).fetchone()
+        if not row or row["kind"] != "ad_draft":
+            raise HTTPException(404, "Ad draft not found")
+        if row["status"] != "pending":
+            raise HTTPException(400, f"Already {row['status']}")
+        payload = json.loads(row["payload"])
+        if body.daily_budget is not None:
+            check_budget({"daily_budget": body.daily_budget})
+            payload["daily_budget"] = body.daily_budget
+        if body.variants is not None:
+            old = payload["variants"]
+            new = []
+            for i, v in enumerate(body.variants):
+                headline = str(v.get("headline", "")).strip()[:40]
+                text = str(v.get("text", "")).strip()[:125]
+                if not headline or not text:
+                    continue
+                before = old[i] if i < len(old) else {}
+                changed = (headline, text) != (before.get("headline"), before.get("text"))
+                combined = f"{headline} {text}"
+                flags = [label for pat, label in RULES if re.search(pat, combined, re.I)]
+                kept = []
+                for f in before.get("flags", []):
+                    if f.startswith("unsupported claim: "):
+                        claim = f.split(": ", 1)[1].lower()
+                        if not changed or claim in combined.lower():
+                            kept.append(f)
+                new.append({
+                    "headline": headline, "text": text, "cta": v.get("cta") or "Shop Now",
+                    "flags": flags + kept, "blocked": bool(flags),
+                    "confirmed": bool(v.get("confirmed")),
+                })
+            payload["variants"] = new
+        conn.execute("UPDATE proposals SET payload = ? WHERE id = ?", (json.dumps(payload), pid))
+    log("owner", "ad_draft_edited", f"id={pid}")
     return {"proposal_id": pid, **payload}

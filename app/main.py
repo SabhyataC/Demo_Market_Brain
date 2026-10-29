@@ -7,6 +7,8 @@ from app.catalog_api import router as catalog_router
 from app.planner import router as planner_router
 from app.ads import router as ads_router
 from fastapi.staticfiles import StaticFiles
+from app.shop_config import router as config_router
+from pathlib import Path
 
 
 @asynccontextmanager
@@ -21,7 +23,12 @@ app.include_router(products_router)
 app.include_router(catalog_router)
 app.include_router(planner_router)
 app.include_router(ads_router)
+app.include_router(config_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+for _d in ("data/frames", "data/photos"):          # frames for the review screen, photos kept with products
+    Path(_d).mkdir(parents=True, exist_ok=True)
+app.mount("/frames", StaticFiles(directory="data/frames"), name="frames")
+app.mount("/photos", StaticFiles(directory="data/photos"), name="photos")
 
 @app.get("/health")
 def health():

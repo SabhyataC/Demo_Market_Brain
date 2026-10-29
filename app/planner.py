@@ -21,8 +21,10 @@ Products:
 def run_planner():
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, name, price, cost, quantity FROM products "
-            "WHERE price IS NOT NULL AND cost IS NOT NULL AND quantity > 0"
+            "SELECT p.id, p.name, p.price, p.cost, COALESCE(SUM(v.stock), 0) AS quantity "
+            "FROM products p LEFT JOIN variants v ON v.product_id = p.id "
+            "WHERE p.price IS NOT NULL AND p.cost IS NOT NULL AND p.price > 0 "
+            "GROUP BY p.id HAVING quantity > 0"
         ).fetchall()
     if len(rows) < 3:
         raise HTTPException(400, "Need at least 3 products with price, cost and stock")
