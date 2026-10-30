@@ -57,7 +57,13 @@ def from_video(body: VideoIn):
         )
         pid = cur.lastrowid
         _keep_thumbs(pid, items)
-        conn.execute("UPDATE proposals SET payload = ? WHERE id = ?", (json.dumps({"items": items}), pid))
+        # keep what the model first produced, so the report can show how much the owner fixed
+        stored = json.loads(conn.execute("SELECT payload FROM proposals WHERE id = ?", (pid,)).fetchone()["payload"])
+        original = stored.get("original") or stored.get("items", [])
+        conn.execute(
+            "UPDATE proposals SET payload = ? WHERE id = ?",
+            (json.dumps({"items": body.items, "original": original}), pid),
+        )
         conn.execute(
             "INSERT INTO audit_log (actor, action, detail) VALUES (?, ?, ?)",
             ("ai", "catalog_draft_created",

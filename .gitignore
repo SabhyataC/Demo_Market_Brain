@@ -3,3 +3,7 @@ __pycache__/
 .env
 *.pyc
 data/
+static/ads/
+test_out.png
+eval/eval_calls.db
+eval/results.json
