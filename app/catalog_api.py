@@ -9,12 +9,14 @@ import shutil
 from pathlib import Path
 from fastapi import UploadFile, File
 from app.frames import sample_frames, crop_around
+from fastapi import UploadFile, File, Form
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
 
 class VideoIn(BaseModel):
     video_path: str
+    notes: str = ""
 
 
 @router.post("/from-video")
@@ -23,7 +25,7 @@ def from_video(body: VideoIn):
     if not frames:
         raise HTTPException(400, "Could not get any frames from this video")
     errors: list = []
-    items = build_catalog(frames, errors)
+    items = build_catalog(frames, errors, body.notes)
     if len(errors) == len(frames):
         raise HTTPException(502, f"The model could not read any frame. First error: {errors[0][1]}")
     for n, it in enumerate(items, 1):                      # one picture per row, showing only that product
@@ -71,9 +73,9 @@ def edit_draft(pid: int, body: DraftEdit):
     return {"proposal_id": pid, "count": len(body.items)}
 
 @router.post("/upload")
-def upload(file: UploadFile = File(...)):
+def upload(file: UploadFile = File(...), notes: str = Form("")):
     Path("data").mkdir(exist_ok=True)
     dest = Path("data") / "uploaded_video.mp4"
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    return from_video(VideoIn(video_path=str(dest)))
+    return from_video(VideoIn(video_path=str(dest), notes=notes))

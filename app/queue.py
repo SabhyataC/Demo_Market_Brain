@@ -107,11 +107,18 @@ def _decide(pid: int, status: str):
                 if not name:
                     continue
                 colour = (it.get("colour") or "").strip() if isinstance(it.get("colour"), str) else ""
+                raw_attrs = it.get("attrs") if isinstance(it.get("attrs"), dict) else {}
+                attrs = {str(k).strip(): str(v).strip() for k, v in raw_attrs.items()
+                         if str(k).strip() and v is not None and str(v).strip()}
+                if colour:
+                    attrs["colour"] = colour
+                description = it.get("description").strip() if isinstance(it.get("description"), str) else ""
                 new_id = create_product(
                     conn, name, brand=it.get("brand"), category=it.get("category"),
+                    description=description or None,
                     price=_num(it.get("price")), cost=_num(it.get("cost")),
                     stock=int(_num(it.get("stock")) or 0),
-                    attrs={"colour": colour} if colour else None,
+                    attrs=attrs or None,
                 )
                 photo = _save_photo(it.get("thumb") or it.get("best_frame"), new_id)
                 if photo:

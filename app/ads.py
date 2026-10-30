@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.db import get_conn
 from app.audit import log
-from app.model_client import ask, generate_image
+from app.model_client import ask, generate_image,edit_image
 from app.catalog import parse_json_list
 from app.budget import check_budget
 from app.policy import check_variants, RULES
@@ -96,24 +96,43 @@ def generate(body: AdIn):
         subject = name if colour.lower() in name.lower() else f"{colour} {name}".strip()
         scene = SCENES.get((p["category"] or "").lower(), "on an elegant textured surface that suits the product")
         Path("static/ads").mkdir(parents=True, exist_ok=True)
-        try:
-            fname = f"ad_{p['id']}_{int(time.time())}.png"
-            generate_image(
-                f"Cinematic commercial product photograph of a {subject}, the single hero subject, "
-                f"{scene}, centered and in sharp focus, styled like a premium brand campaign shot. "
-                f"Dramatic golden-hour side light with a soft rim light and gentle haze, "
-                f"deep shadows, rich contrast and natural colour grading, "
-                f"shot on an 85mm lens at f/1.8 with shallow depth of field and creamy background bokeh. "
-                f"Moody and aspirational, film-like grain, ultra detailed, photorealistic. "
-                f"Show only the product itself. No packaging, no bag, no box, no label, "
-                f"no text, no logos, no watermark, no people.",
-                f"static/ads/{fname}",
-            )
-            image_url, image_source = f"/static/ads/{fname}", "generated"
-        except Exception as e:
-            log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
-            if p["photo"]:
-                image_url, image_source = p["photo"], "real photo"
+        fname = f"ad_{p['id']}_{int(time.time())}.png"
+        out = f"static/ads/{fname}"
+        style = (
+            f"{scene}, centered and in sharp focus, styled like a premium brand campaign shot. "
+            f"Dramatic golden-hour side light with a soft rim light and gentle haze, "
+            f"deep shadows, rich contrast and natural colour grading, "
+            f"shot on an 85mm lens at f/1.8 with shallow depth of field and creamy background bokeh. "
+            f"Moody and aspirational, film-like grain, ultra detailed, photorealistic. "
+            f"Do not invent text, logos or labels. No watermark, no people."
+        )
+        reference = Path("data") / p["photo"].lstrip("/") if p["photo"] else None
+        done = False
+        if reference and reference.is_file():
+            try:
+                edit_image(
+                    f"Cinematic commercial product photograph. Keep the product in the reference photo exactly the same: "
+                    f"same shape, colour, pattern, material and details. Show only that one product ({subject}), as it is normally sold. "
+                    f"Remove any price tag, hanger, other items and background clutter from the reference. "
+                    f"Place it {style}",
+                    str(reference), out,
+                )
+                image_url, image_source, done = f"/static/ads/{fname}", "generated from your photo", True
+            except Exception as e:
+                log("ai", "ad_edit_failed", f"product={p['id']} {str(e)[:120]}")
+        if not done:
+            try:
+                generate_image(
+                    f"Cinematic commercial product photograph of this product: {subject}, the single hero subject, "
+                    f"{style} Show only the product itself, as it is normally sold. "
+                    f"Do not add any extra bag, box or gift packaging.",
+                    out,
+                )
+                image_url, image_source = f"/static/ads/{fname}", "generated"
+            except Exception as e:
+                log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
+                if p["photo"]:
+                    image_url, image_source = p["photo"], "real photo"
 
     payload = {
         "product_id": p["id"],

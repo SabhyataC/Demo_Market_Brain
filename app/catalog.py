@@ -188,14 +188,19 @@ def merge_sightings(sightings: list[dict]) -> list[dict]:
 
 # ---------- reading the frames ----------
 
-def build_prompt() -> str:
+def build_prompt(notes: str = "") -> str:
     cfg = shop_config.load()
-    return PROMPT.format(business_type=cfg["business_type"], categories=json.dumps(cfg["categories"]))
+    prompt = PROMPT.format(business_type=cfg["business_type"], categories=json.dumps(cfg["categories"]))
+    notes = (notes or "").strip()[:500]
+    if notes:
+        prompt += ("\n\nNotes from the shop owner about this shelf. Use them to help read the tags; "
+                   "if a note contradicts a tag, trust the tag:\n" + notes)
+    return prompt
 
 
-def build_catalog(frame_paths: list[str], errors: list | None = None) -> list[dict]:
+def build_catalog(frame_paths: list[str], errors: list | None = None, notes: str = "") -> list[dict]:
     """Read every frame, then merge. A frame that fails is recorded in `errors` and skipped."""
-    prompt = build_prompt()
+    prompt = build_prompt(notes)
     categories = shop_config.load()["categories"]
     sightings: list[dict] = []
     for path in frame_paths:

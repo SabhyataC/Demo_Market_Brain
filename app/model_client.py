@@ -49,3 +49,17 @@ def generate_image(prompt: str, out_path: str, size: str = "1024x1024") -> str:
     with open(out_path, "wb") as f:
         f.write(base64.b64decode(resp.data[0].b64_json))
     return out_path
+
+def edit_image(prompt: str, reference_path: str, out_path: str, size: str = "1024x1024") -> str:
+    with open(reference_path, "rb") as f:
+        resp = client.images.edit(
+            model=os.getenv("IMAGE_MODEL_NAME", "muse-image-1.0"),
+            image=f,
+            prompt=prompt,
+            size=size,
+            response_format="b64_json",
+            extra_body={"output_format": "png"},
+        )
+    with open(out_path, "wb") as f:
+        f.write(base64.b64decode(resp.data[0].b64_json))
+    return out_path
