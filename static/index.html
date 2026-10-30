@@ -8,7 +8,7 @@
     <style>
         body {
             font-family: system-ui, sans-serif;
-            max-width: 820px;
+            max-width: 1000px;
             margin: 32px auto;
             padding: 0 16px;
             color: #1c1c1c;
@@ -88,13 +88,14 @@
             color: #666;
         }
 
+        #products input { padding: 5px; box-sizing: border-box; }
+        #products td { vertical-align: middle; }
+        #products .num { width: 70px; }
+        #products .txt { width: 100%; min-width: 90px; }
+
         #audit td {
             font-size: 13px;
         }
-#products input { padding: 5px; box-sizing: border-box; }
-#products td { vertical-align: middle; }
-#products .num { width: 70px; }
-#products .txt { width: 100%; min-width: 90px; }
     </style>
 </head>
 
@@ -102,69 +103,69 @@
     <h1>Marketing Brain</h1>
     <p class="sub">Camera to catalog</p>
 
+    <details class="card" id="shopCard">
+        <summary><b>Shop setup</b> <small id="sc-summary"></small></summary>
+        <p><small>The business type and categories are sent to the model when it reads your shelf video, so every product gets a category from this list. Include "other" as a catch-all.</small></p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <select id="sc-preset"><option value="">Choose a preset...</option></select>
+            <button onclick="applyPreset()">Use preset</button>
+        </div>
+        <table>
+            <tr><td style="width:150px">Business type</td><td><input type="text" id="sc-type"></td></tr>
+            <tr><td>Categories</td><td><input type="text" id="sc-cats" placeholder="kurta, saree, jeans, other"></td></tr>
+            <tr><td>Extra facts to record</td><td><input type="text" id="sc-attrs" placeholder="fabric, pattern"></td></tr>
+        </table>
+        <button class="primary" onclick="saveShop()">Save shop setup</button>
+    </details>
+
     <div class="card">
-        <details class="card" id="shopCard">
-    <summary><b>Shop setup</b> <small id="sc-summary"></small></summary>
-    <p><small>The business type and categories are sent to the model when it reads your shelf video, so every product gets a category from this list. Include "other" as a catch-all.</small></p>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-        <select id="sc-preset"><option value="">Choose a preset...</option></select>
-        <button onclick="applyPreset()">Use preset</button>
-    </div>
-    <table>
-        <tr><td style="width:150px">Business type</td><td><input type="text" id="sc-type"></td></tr>
-        <tr><td>Currency</td><td><input type="text" id="sc-currency" style="width:80px"></td></tr>
-        <tr><td>Categories</td><td><input type="text" id="sc-cats" placeholder="kurta, saree, jeans, other"></td></tr>
-        <tr><td>Options per product</td><td><input type="text" id="sc-axes" placeholder="colour, size"></td></tr>
-        <tr><td>Extra facts to record</td><td><input type="text" id="sc-attrs" placeholder="fabric, pattern"></td></tr>
-    </table>
-    <button class="primary" onclick="saveShop()">Save shop setup</button>
-</details>
         <b>1. Upload a shelf video</b><br><br>
         <input type="file" id="video" accept="video/*">
         <button class="primary" id="go" onclick="upload()">Build catalog draft</button>
         <br><br>
-<textarea id="notes" rows="2" maxlength="500" placeholder="Optional notes about this shelf, e.g. all items are cotton, brand on this shelf is Vastra" style="width:100%;box-sizing:border-box;padding:6px"></textarea>
+        <textarea id="notes" rows="2" maxlength="500" placeholder="Optional notes about this shelf, e.g. all items are cotton, brand on this shelf is Vastra" style="width:100%;box-sizing:border-box;padding:6px"></textarea>
     </div>
 
     <div class="card" id="draft" style="display:none">
         <b>2. Check the draft</b> <span id="count"></span>
         <table>
             <thead>
-<tr>
-    <th>Photo</th><th>Name</th><th>Brand</th><th>Category</th>
-    <th>Price</th><th>Cost</th><th>Stock</th><th>Check</th><th></th>
-</tr>
+                <tr>
+                    <th>Photo</th><th>Name</th><th>Brand</th><th>Category</th>
+                    <th>Price</th><th>Cost</th><th>Stock</th><th>Check</th><th></th>
+                </tr>
             </thead>
             <tbody id="rows"></tbody>
         </table>
         <button onclick="addRow()">+ Add item</button>
         <button class="primary" id="approve" onclick="approve()">Approve and import</button>
     </div>
-    <div class="card">
-        <div class="card" id="productsCard">
-    <b>Products</b> <span id="pcount"></span>
-    <button onclick="loadProducts()">Refresh</button>
-    <table id="products">
-        <thead>
-            <tr>
-                <th>Photo</th><th>Name</th><th>Brand</th><th>Category</th>
-                <th>Price</th><th>Cost</th><th>Stock</th><th>Margin</th><th></th>
-            </tr>
-        </thead>
-        <tbody id="prows"></tbody>
-    </table>
-    <div id="padd" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <input type="text" id="np-name" placeholder="Name" style="flex:2;min-width:120px">
-        <input type="text" id="np-brand" placeholder="Brand" style="flex:1;min-width:90px">
-        <input type="text" id="np-price" placeholder="Price" style="width:70px">
-        <input type="text" id="np-cost" placeholder="Cost" style="width:70px">
-        <input type="text" id="np-stock" placeholder="Stock" style="width:70px">
-        <button class="primary" onclick="addProduct()">+ Add product</button>
+
+    <div class="card" id="productsCard">
+        <b>Products</b> <span id="pcount"></span>
+        <button onclick="loadProducts()">Refresh</button>
+        <table id="products">
+            <thead>
+                <tr>
+                    <th>Photo</th><th>Name</th><th>Brand</th><th>Category</th>
+                    <th>Price</th><th>Cost</th><th>Stock</th><th>Margin</th><th></th>
+                </tr>
+            </thead>
+            <tbody id="prows"></tbody>
+        </table>
+        <div id="padd" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="np-name" placeholder="Name" style="flex:2;min-width:120px">
+            <input type="text" id="np-brand" placeholder="Brand" style="flex:1;min-width:90px">
+            <input type="text" id="np-price" placeholder="Price" style="width:70px">
+            <input type="text" id="np-cost" placeholder="Cost" style="width:70px">
+            <input type="text" id="np-stock" placeholder="Stock" style="width:70px">
+            <button class="primary" onclick="addProduct()">+ Add product</button>
+        </div>
     </div>
-</div>
+
+    <div class="card">
         <b>3. Approval queue</b>
         <button onclick="runPlanner()" id="plan">Run planner</button>
-        
         <button onclick="loadQueue()">Refresh</button>
         <label style="font-size:13px"><input type="checkbox" id="realPhoto"> Use my real product photo in ads instead of a generated image</label>
         <div id="queue"></div>
@@ -191,9 +192,56 @@
     <script>
         let pid = null;
         let items = [];
+        let products = [];
+        let shopCfg = null;
+        let attrNames = [];
         const $ = id => document.getElementById(id);
 
         function say(t, err) { $("msg").textContent = t; $("msg").className = err ? "err" : ""; }
+
+        function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+        async function errText(r) {
+            const t = await r.text();
+            try {
+                const d = JSON.parse(t).detail;
+                return typeof d === "string" ? d : JSON.stringify(d);
+            } catch (e) { return t; }
+        }
+
+        function framePath(pic) {
+            return pic.replace(/\\/g, "/").replace(/^.*data\/frames\//, "");
+        }
+
+        function numOrNull(v) {
+            const n = parseFloat(v);
+            return isFinite(n) && n >= 0 ? n : null;
+        }
+
+        function marginText(price, cost) {
+            if (price == null || cost == null || price <= 0) return "";
+            return Math.round((price - cost) / price * 1000) / 10 + "%";
+        }
+
+        function csv(v) {
+            return v.split(",").map(x => x.trim()).filter(Boolean);
+        }
+
+        async function loadAttrNames() {
+            try {
+                const r = await fetch("/config");
+                if (r.ok) attrNames = (await r.json()).attributes || [];
+            } catch (e) {}
+        }
+
+        function factNames(extra) {
+            const seen = new Set(), out = [];
+            ["colour"].concat(attrNames, extra || []).forEach(n => {
+                const k = n.toLowerCase();
+                if (!seen.has(k)) { seen.add(k); out.push(n); }
+            });
+            return out;
+        }
 
         async function upload() {
             const f = $("video").files[0];
@@ -205,7 +253,7 @@
                 fd.append("file", f);
                 fd.append("notes", $("notes").value);
                 const r = await fetch("/catalog/upload", { method: "POST", body: fd });
-                if (!r.ok) throw new Error(await r.text());
+                if (!r.ok) throw new Error(await errText(r));
                 const d = await r.json();
                 pid = d.proposal_id;
                 items = d.items;
@@ -215,278 +263,240 @@
             } catch (e) { say("Failed: " + e.message, true); }
             $("go").disabled = false;
         }
-    let products = [];
 
-function numOrNull(v) {
-    const n = parseFloat(v);
-    return isFinite(n) && n >= 0 ? n : null;
-}
+        function render() {
+            $("draft").style.display = "block";
+            const flagged = items.filter(it => (it.check || []).length).length;
+            $("count").textContent = "(" + items.length + " items" + (flagged ? ", " + flagged + " to check" : "") + ")";
+            $("rows").innerHTML = "";
+            const fields = ["name", "brand", "category", "price", "cost", "stock"];
+            items.forEach((it, i) => {
+                const tr = document.createElement("tr");
+                const why = it.check || [];
+                const pic = it.thumb || it.best_frame;
+                const photo = pic
+                    ? '<img src="/frames/' + esc(framePath(pic)) + '" style="height:72px;border-radius:6px">' : "";
+                tr.innerHTML = "<td>" + photo + "</td>" +
+                    fields.map(k =>
+                        '<td><input type="text" value="' + esc(it[k] == null ? "" : it[k]) + '" data-i="' + i + '" data-k="' + k + '"' +
+                        (["price", "cost", "stock"].includes(k) ? ' style="width:64px"' : ["name", "brand"].includes(k) ? ' style="min-width:120px"' : ' style="min-width:80px"') + "></td>").join("") +
+                    "<td>" + (why.length
+                        ? '<span title="' + esc(why.join("; ")) + '" style="color:#b45309;font-size:12px">&#9888; ' + esc(why[0]) + "</span>"
+                        : '<span style="color:#0a6">ok</span>') + "</td>" +
+                    '<td><button onclick="del(' + i + ')">Delete</button></td>';
+                $("rows").appendChild(tr);
 
-function marginText(price, cost) {
-    if (price == null || cost == null || price <= 0) return "";
-    return Math.round((price - cost) / price * 1000) / 10 + "%";
-}
-
-async function loadProducts() {
-    const r = await fetch("/products");
-    if (!r.ok) return say("Failed: " + await r.text(), true);
-    products = await r.json();
-    $("pcount").textContent = "(" + products.length + ")";
-    $("prows").innerHTML = products.length ? "" : '<tr><td colspan="9"><small>No products yet.</small></td></tr>';
-    products.forEach(p => {
-        const tr = document.createElement("tr");
-        tr.dataset.id = p.id;
-        const photo = p.photo ? '<img src="' + esc(p.photo) + '" style="height:48px;border-radius:6px">' : "";
-        const stockCell = p.variant_count > 1
-            ? '<small>' + p.stock + " in " + p.variant_count + " variants</small>"
-            : '<input type="text" class="num f-stock" value="' + esc(p.stock) + '">';
-        tr.innerHTML = "<td>" + photo + "</td>" +
-            '<td><input type="text" class="txt f-name" value="' + esc(p.name) + '"></td>' +
-            '<td><input type="text" class="txt f-brand" value="' + esc(p.brand || "") + '"></td>' +
-            '<td><input type="text" class="txt f-category" value="' + esc(p.category || "") + '"></td>' +
-            '<td><input type="text" class="num f-price" value="' + esc(p.price == null ? "" : p.price) + '"></td>' +
-            '<td><input type="text" class="num f-cost" value="' + esc(p.cost == null ? "" : p.cost) + '"></td>' +
-            "<td>" + stockCell + "</td>" +
-            '<td class="margin">' + marginText(p.price, p.cost) + "</td>" +
-            '<td style="white-space:nowrap">' +
-            '<button onclick="saveProduct(' + p.id + ')">Save</button> ' +
-            '<button onclick="genAd(' + p.id + ')">Ad</button> ' +
-            '<button onclick="deleteProduct(' + p.id + ')">Delete</button></td>';
-        $("prows").appendChild(tr);
-    });
-}
-
-async function saveProduct(id) {
-    const row = document.querySelector('#prows tr[data-id="' + id + '"]');
-    const p = products.find(x => x.id === id);
-    const val = c => { const el = row.querySelector(c); return el ? el.value.trim() : null; };
-    const name = val(".f-name");
-    if (!name) return say("Name cannot be empty.", true);
-    for (const [c, label] of [[".f-price", "Price"], [".f-cost", "Cost"]]) {
-        const t = val(c);
-        if (t && numOrNull(t) === null) return say(label + " must be a number, 0 or more.", true);
-    }
-    const body = {
-        name, brand: val(".f-brand") || null, category: val(".f-category") || null,
-        price: numOrNull(val(".f-price")), cost: numOrNull(val(".f-cost")),
-    };
-    try {
-        let r = await fetch("/products/" + id, {
-            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        });
-        if (!r.ok) throw new Error(await r.text());
-        const stockText = val(".f-stock");
-        if (stockText !== null && p.variant_count === 1) {
-            const stock = numOrNull(stockText);
-            if (stock === null) throw new Error("Stock must be a number, 0 or more.");
-            if (Math.floor(stock) !== p.stock) {
-                const full = await (await fetch("/products/" + id)).json();
-                r = await fetch("/variants/" + full.variants[0].id, {
-                    method: "PATCH", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ stock: Math.floor(stock) }),
-                });
-                if (!r.ok) throw new Error(await r.text());
-            }
+                const attrs = it.attrs || {};
+                const dr = document.createElement("tr");
+                dr.innerHTML = '<td></td><td colspan="8" style="padding-bottom:12px"><small>Description</small> ' +
+                    '<input type="text" data-i="' + i + '" data-k="description" value="' + esc(it.description || "") + '" style="width:45%;min-width:200px"> ' +
+                    factNames(Object.keys(attrs)).map(n =>
+                        '<small>' + esc(n) + '</small> <input type="text" data-i="' + i + '" data-a="' + esc(n) + '" value="' +
+                        esc(n.toLowerCase() === "colour" ? (it.colour || "") : (attrs[n] || "")) + '" style="width:110px"> ').join("") +
+                    "</td>";
+                $("rows").appendChild(dr);
+            });
+            document.querySelectorAll("#rows input").forEach(inp => {
+                inp.oninput = () => {
+                    const it = items[inp.dataset.i];
+                    if (inp.dataset.a !== undefined) {
+                        if (inp.dataset.a.toLowerCase() === "colour") it.colour = inp.value;
+                        else { it.attrs = it.attrs || {}; it.attrs[inp.dataset.a] = inp.value; }
+                    } else it[inp.dataset.k] = inp.value;
+                };
+            });
         }
-        say("Product #" + id + " saved.");
-        loadProducts(); loadAudit();
-    } catch (e) { say("Failed: " + e.message, true); }
-}
 
-async function deleteProduct(id) {
-    const p = products.find(x => x.id === id);
-    if (!confirm("Delete " + (p ? p.name : "this product") + "?")) return;
-    const r = await fetch("/products/" + id, { method: "DELETE" });
-    say(r.ok ? "Product #" + id + " deleted." : "Failed: " + await r.text(), !r.ok);
-    loadProducts(); loadAudit();
-}
-
-async function addProduct() {
-    const name = $("np-name").value.trim();
-    if (!name) return say("Enter a product name.", true);
-    for (const [i, label] of [["np-price", "Price"], ["np-cost", "Cost"], ["np-stock", "Stock"]]) {
-        const t = $(i).value.trim();
-        if (t && numOrNull(t) === null) return say(label + " must be a number, 0 or more.", true);
-    }
-    const body = {
-        name, brand: $("np-brand").value.trim() || null,
-        price: numOrNull($("np-price").value), cost: numOrNull($("np-cost").value),
-        stock: Math.floor(numOrNull($("np-stock").value) || 0),
-    };
-    const r = await fetch("/products", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
-    if (!r.ok) return say("Failed: " + await r.text(), true);
-    ["np-name", "np-brand", "np-price", "np-cost", "np-stock"].forEach(i => $(i).value = "");
-    say("Product added.");
-    loadProducts(); loadAudit();
-}
-
-let shopCfg = null;
-
-function csv(v) {
-    return v.split(",").map(x => x.trim()).filter(Boolean);
-}
-
-function fillShop(c) {
-    shopCfg = c;
-    $("sc-type").value = c.business_type;
-    $("sc-currency").value = c.currency;
-    $("sc-cats").value = c.categories.join(", ");
-    $("sc-axes").value = c.variant_axes.map(a => a.name).join(", ");
-    $("sc-attrs").value = c.attributes.join(", ");
-    $("sc-summary").textContent = c.business_type + " (" + c.categories.length + (c.categories.length === 1 ? " category)" : " categories)");
-}
-
-async function loadShop() {
-    const [cr, pr] = await Promise.all([fetch("/config"), fetch("/config/presets")]);
-    if (cr.ok) fillShop(await cr.json());
-    if (pr.ok) {
-        const presets = await pr.json();
-        $("sc-preset").innerHTML = '<option value="">Choose a preset...</option>' +
-            Object.keys(presets).map(n => '<option value="' + esc(n) + '">' + esc(n) + "</option>").join("");
-    }
-}
-
-async function applyPreset() {
-    const name = $("sc-preset").value;
-    if (!name) return say("Pick a preset first.", true);
-    const r = await fetch("/config/preset/" + encodeURIComponent(name), { method: "POST" });
-    if (!r.ok) return say("Failed: " + await r.text(), true);
-    fillShop(await r.json());
-    say("Preset " + name + " applied.");
-    loadAudit();
-}
-
-async function saveShop() {
-    const type = $("sc-type").value.trim();
-    const cats = csv($("sc-cats").value);
-    if (!type) return say("Enter a business type.", true);
-    if (!cats.length) return say("Enter at least one category.", true);
-    const old = (shopCfg && shopCfg.variant_axes) || [];
-    const axes = csv($("sc-axes").value).map(n =>
-        old.find(a => a.name.toLowerCase() === n.toLowerCase()) || { name: n, values: null });
-    const body = {
-        business_type: type, currency: $("sc-currency").value.trim() || "Rs",
-        categories: cats, variant_axes: axes, attributes: csv($("sc-attrs").value),
-    };
-    const r = await fetch("/config", {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
-    if (!r.ok) return say("Failed: " + await r.text(), true);
-    fillShop(await r.json());
-    say("Shop setup saved.");
-    loadAudit();
-}
-
-async function loadProducts() {
-    await loadAttrNames();
-    const r = await fetch("/products");
-    if (!r.ok) return say("Failed: " + await r.text(), true);
-    products = await r.json();
-    $("pcount").textContent = "(" + products.length + ")";
-    $("prows").innerHTML = products.length ? "" : '<tr><td colspan="9"><small>No products yet.</small></td></tr>';
-    products.forEach(p => {
-        const tr = document.createElement("tr");
-        tr.dataset.id = p.id;
-        tr.className = "main";
-        const photo = p.photo ? '<img src="' + esc(p.photo) + '" style="height:48px;border-radius:6px">' : "";
-        const stockCell = p.variant_count > 1
-            ? '<small>' + p.stock + " in " + p.variant_count + " variants</small>"
-            : '<input type="text" class="num f-stock" value="' + esc(p.stock) + '">';
-        tr.innerHTML = "<td>" + photo + "</td>" +
-            '<td><input type="text" class="txt f-name" value="' + esc(p.name) + '"></td>' +
-            '<td><input type="text" class="txt f-brand" value="' + esc(p.brand || "") + '"></td>' +
-            '<td><input type="text" class="txt f-category" value="' + esc(p.category || "") + '"></td>' +
-            '<td><input type="text" class="num f-price" value="' + esc(p.price == null ? "" : p.price) + '"></td>' +
-            '<td><input type="text" class="num f-cost" value="' + esc(p.cost == null ? "" : p.cost) + '"></td>' +
-            "<td>" + stockCell + "</td>" +
-            '<td class="margin">' + marginText(p.price, p.cost) + "</td>" +
-            '<td style="white-space:nowrap">' +
-            '<button onclick="saveProduct(' + p.id + ')">Save</button> ' +
-            '<button onclick="genAd(' + p.id + ')">Ad</button> ' +
-            '<button onclick="deleteProduct(' + p.id + ')">Delete</button></td>';
-        $("prows").appendChild(tr);
-
-        const attrs = p.attrs || {};
-        const dr = document.createElement("tr");
-        dr.dataset.id = p.id;
-        dr.className = "det";
-        dr.innerHTML = '<td></td><td colspan="8" style="padding-bottom:12px"><small>Description</small> ' +
-            '<input type="text" class="f-desc" value="' + esc(p.description || "") + '" style="width:45%;min-width:200px"> ' +
-            factNames(Object.keys(attrs)).map(n =>
-                '<small>' + esc(n) + '</small> <input type="text" class="f-attr" data-a="' + esc(n) + '" value="' +
-                esc(attrs[n] || "") + '" style="width:110px"> ').join("") + "</td>";
-        $("prows").appendChild(dr);
-    });
-}
-
-async function saveProduct(id) {
-    const row = document.querySelector('#prows tr.main[data-id="' + id + '"]');
-    const det = document.querySelector('#prows tr.det[data-id="' + id + '"]');
-    const p = products.find(x => x.id === id);
-    const val = c => { const el = row.querySelector(c); return el ? el.value.trim() : null; };
-    const name = val(".f-name");
-    if (!name) return say("Name cannot be empty.", true);
-    for (const [c, label] of [[".f-price", "Price"], [".f-cost", "Cost"]]) {
-        const t = val(c);
-        if (t && numOrNull(t) === null) return say(label + " must be a number, 0 or more.", true);
-    }
-    const attrs = {};
-    det.querySelectorAll(".f-attr").forEach(el => { attrs[el.dataset.a] = el.value.trim() || null; });
-    const body = {
-        name, brand: val(".f-brand") || null, category: val(".f-category") || null,
-        price: numOrNull(val(".f-price")), cost: numOrNull(val(".f-cost")),
-        description: det.querySelector(".f-desc").value.trim() || null, attrs,
-    };
-    try {
-        let r = await fetch("/products/" + id, {
-            method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        });
-        if (!r.ok) throw new Error(await r.text());
-        const stockText = val(".f-stock");
-        if (stockText !== null && p.variant_count === 1) {
-            const stock = numOrNull(stockText);
-            if (stock === null) throw new Error("Stock must be a number, 0 or more.");
-            if (Math.floor(stock) !== p.stock) {
-                const full = await (await fetch("/products/" + id)).json();
-                r = await fetch("/variants/" + full.variants[0].id, {
-                    method: "PATCH", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ stock: Math.floor(stock) }),
-                });
-                if (!r.ok) throw new Error(await r.text());
-            }
-        }
-        say("Product #" + id + " saved.");
-        loadProducts(); loadAudit();
-    } catch (e) { say("Failed: " + e.message, true); }
-}
-
-        function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
         function del(i) { items.splice(i, 1); render(); }
-        function addRow() { items.push({ name: "", brand: "", category: "other", price: "", cost: "", stock: "", check: [] }); render(); }
+
+        function addRow() {
+            items.push({ name: "", brand: "", category: "other", price: "", cost: "", stock: "", description: "", attrs: {}, check: [] });
+            render();
+        }
 
         async function approve() {
             $("approve").disabled = true;
             try {
                 const num = v => { const n = parseFloat(v); return isFinite(n) && n >= 0 ? n : null; };
-const clean = items.filter(it => (it.name || "").trim()).map(it => ({
-    ...it, price: num(it.price), cost: num(it.cost),
-    stock: num(it.stock) === null ? 0 : Math.floor(num(it.stock)),
-}));
+                const clean = items.filter(it => (it.name || "").trim()).map(it => ({
+                    ...it, price: num(it.price), cost: num(it.cost),
+                    stock: num(it.stock) === null ? 0 : Math.floor(num(it.stock)),
+                }));
                 let r = await fetch("/catalog/draft/" + pid, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ items: clean }),
                 });
-                if (!r.ok) throw new Error(await r.text());
+                if (!r.ok) throw new Error(await errText(r));
                 r = await fetch("/proposals/" + pid + "/approve", { method: "POST" });
-                if (!r.ok) throw new Error(await r.text());
-                say("Done: " + clean.length + " products imported.");
-                loadProducts();
+                if (!r.ok) throw new Error(await errText(r));
+                const ap = await r.json();
+                say("Done: " + (typeof ap.added === "number"
+                    ? ap.added + " added" + (ap.skipped ? ", " + ap.skipped + " already in your catalog" : "") + "."
+                    : clean.length + " products imported."));
+                loadProducts(); loadAudit();
                 $("draft").style.display = "none";
             } catch (e) { say("Failed: " + e.message, true); }
             $("approve").disabled = false;
+        }
+
+        async function loadProducts() {
+            await loadAttrNames();
+            const r = await fetch("/products");
+            if (!r.ok) return say("Failed: " + await errText(r), true);
+            products = await r.json();
+            $("pcount").textContent = "(" + products.length + ")";
+            $("prows").innerHTML = products.length ? "" : '<tr><td colspan="9"><small>No products yet.</small></td></tr>';
+            products.forEach(p => {
+                const tr = document.createElement("tr");
+                tr.dataset.id = p.id;
+                tr.className = "main";
+                const photo = p.photo ? '<img src="' + esc(p.photo) + '" style="height:48px;border-radius:6px">' : "";
+                const stockCell = p.variant_count > 1
+                    ? '<small>' + p.stock + " in " + p.variant_count + " variants</small>"
+                    : '<input type="text" class="num f-stock" value="' + esc(p.stock) + '">';
+                tr.innerHTML = "<td>" + photo + "</td>" +
+                    '<td><input type="text" class="txt f-name" value="' + esc(p.name) + '"></td>' +
+                    '<td><input type="text" class="txt f-brand" value="' + esc(p.brand || "") + '"></td>' +
+                    '<td><input type="text" class="txt f-category" value="' + esc(p.category || "") + '"></td>' +
+                    '<td><input type="text" class="num f-price" value="' + esc(p.price == null ? "" : p.price) + '"></td>' +
+                    '<td><input type="text" class="num f-cost" value="' + esc(p.cost == null ? "" : p.cost) + '"></td>' +
+                    "<td>" + stockCell + "</td>" +
+                    '<td class="margin">' + marginText(p.price, p.cost) + "</td>" +
+                    '<td style="white-space:nowrap">' +
+                    '<button onclick="saveProduct(' + p.id + ')">Save</button> ' +
+                    '<button onclick="genAd(' + p.id + ')">Ad</button> ' +
+                    '<button onclick="deleteProduct(' + p.id + ')">Delete</button></td>';
+                $("prows").appendChild(tr);
+
+                const attrs = p.attrs || {};
+                const dr = document.createElement("tr");
+                dr.dataset.id = p.id;
+                dr.className = "det";
+                dr.innerHTML = '<td></td><td colspan="8" style="padding-bottom:12px"><small>Description</small> ' +
+                    '<input type="text" class="f-desc" value="' + esc(p.description || "") + '" style="width:45%;min-width:200px"> ' +
+                    factNames(Object.keys(attrs)).map(n =>
+                        '<small>' + esc(n) + '</small> <input type="text" class="f-attr" data-a="' + esc(n) + '" value="' +
+                        esc(attrs[n] || "") + '" style="width:110px"> ').join("") + "</td>";
+                $("prows").appendChild(dr);
+            });
+        }
+
+        async function saveProduct(id) {
+            const row = document.querySelector('#prows tr.main[data-id="' + id + '"]');
+            const det = document.querySelector('#prows tr.det[data-id="' + id + '"]');
+            const p = products.find(x => x.id === id);
+            const val = c => { const el = row.querySelector(c); return el ? el.value.trim() : null; };
+            const name = val(".f-name");
+            if (!name) return say("Name cannot be empty.", true);
+            for (const [c, label] of [[".f-price", "Price"], [".f-cost", "Cost"]]) {
+                const t = val(c);
+                if (t && numOrNull(t) === null) return say(label + " must be a number, 0 or more.", true);
+            }
+            const attrs = {};
+            det.querySelectorAll(".f-attr").forEach(el => { attrs[el.dataset.a] = el.value.trim() || null; });
+            const body = {
+                name, brand: val(".f-brand") || null, category: val(".f-category") || null,
+                price: numOrNull(val(".f-price")), cost: numOrNull(val(".f-cost")),
+                description: det.querySelector(".f-desc").value.trim() || null, attrs,
+            };
+            try {
+                let r = await fetch("/products/" + id, {
+                    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                });
+                if (!r.ok) throw new Error(await errText(r));
+                const stockText = val(".f-stock");
+                if (stockText !== null && p.variant_count === 1) {
+                    const stock = numOrNull(stockText);
+                    if (stock === null) throw new Error("Stock must be a number, 0 or more.");
+                    if (Math.floor(stock) !== p.stock) {
+                        const full = await (await fetch("/products/" + id)).json();
+                        r = await fetch("/variants/" + full.variants[0].id, {
+                            method: "PATCH", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ stock: Math.floor(stock) }),
+                        });
+                        if (!r.ok) throw new Error(await errText(r));
+                    }
+                }
+                say("Product #" + id + " saved.");
+                loadProducts(); loadAudit();
+            } catch (e) { say("Failed: " + e.message, true); }
+        }
+
+        async function deleteProduct(id) {
+            const p = products.find(x => x.id === id);
+            if (!confirm("Delete " + (p ? p.name : "this product") + "?")) return;
+            const r = await fetch("/products/" + id, { method: "DELETE" });
+            say(r.ok ? "Product #" + id + " deleted." : "Failed: " + await errText(r), !r.ok);
+            loadProducts(); loadAudit();
+        }
+
+        async function addProduct() {
+            const name = $("np-name").value.trim();
+            if (!name) return say("Enter a product name.", true);
+            for (const [i, label] of [["np-price", "Price"], ["np-cost", "Cost"], ["np-stock", "Stock"]]) {
+                const t = $(i).value.trim();
+                if (t && numOrNull(t) === null) return say(label + " must be a number, 0 or more.", true);
+            }
+            const body = {
+                name, brand: $("np-brand").value.trim() || null,
+                price: numOrNull($("np-price").value), cost: numOrNull($("np-cost").value),
+                stock: Math.floor(numOrNull($("np-stock").value) || 0),
+            };
+            const r = await fetch("/products", {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+            });
+            if (!r.ok) return say("Failed: " + await errText(r), true);
+            ["np-name", "np-brand", "np-price", "np-cost", "np-stock"].forEach(i => $(i).value = "");
+            say("Product added.");
+            loadProducts(); loadAudit();
+        }
+
+        function fillShop(c) {
+            shopCfg = c;
+            $("sc-type").value = c.business_type;
+            $("sc-cats").value = c.categories.join(", ");
+            $("sc-attrs").value = c.attributes.join(", ");
+            $("sc-summary").textContent = c.business_type + " (" + c.categories.length + (c.categories.length === 1 ? " category)" : " categories)");
+        }
+
+        async function loadShop() {
+            const [cr, pr] = await Promise.all([fetch("/config"), fetch("/config/presets")]);
+            if (cr.ok) fillShop(await cr.json());
+            if (pr.ok) {
+                const presets = await pr.json();
+                $("sc-preset").innerHTML = '<option value="">Choose a preset...</option>' +
+                    Object.keys(presets).map(n => '<option value="' + esc(n) + '">' + esc(n) + "</option>").join("");
+            }
+        }
+
+        async function applyPreset() {
+            const name = $("sc-preset").value;
+            if (!name) return say("Pick a preset first.", true);
+            const r = await fetch("/config/preset/" + encodeURIComponent(name), { method: "POST" });
+            if (!r.ok) return say("Failed: " + await errText(r), true);
+            fillShop(await r.json());
+            say("Preset " + name + " applied.");
+            loadAudit();
+        }
+
+        async function saveShop() {
+            const type = $("sc-type").value.trim();
+            const cats = csv($("sc-cats").value);
+            if (!type) return say("Enter a business type.", true);
+            if (!cats.length) return say("Enter at least one category.", true);
+            const body = {
+                business_type: type, currency: (shopCfg && shopCfg.currency) || "Rs",
+                categories: cats, variant_axes: (shopCfg && shopCfg.variant_axes) || [],
+                attributes: csv($("sc-attrs").value),
+            };
+            const r = await fetch("/config", {
+                method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+            });
+            if (!r.ok) return say("Failed: " + await errText(r), true);
+            fillShop(await r.json());
+            say("Shop setup saved.");
+            loadAudit();
         }
 
         async function runPlanner() {
@@ -494,7 +504,7 @@ const clean = items.filter(it => (it.name || "").trim()).map(it => ({
             say("Planner is thinking...");
             try {
                 const r = await fetch("/planner/run", { method: "POST" });
-                if (!r.ok) throw new Error(await r.text());
+                if (!r.ok) throw new Error(await errText(r));
                 say("Planner proposal added.");
                 loadQueue(); loadAudit();
             } catch (e) { say("Failed: " + e.message, true); }
@@ -507,26 +517,26 @@ const clean = items.filter(it => (it.name || "").trim()).map(it => ({
                     "<div><b>" + esc(k.name) + "</b> (" + k.margin_pct + "% margin, " + k.stock + " in stock)<br><small>" +
                     esc(k.reason) + '</small><br><button onclick="genAd(' + k.id + ')">Generate ad</button></div>').join("");
             }
-if (p.kind === "ad_draft") {
-    const d = p.payload;
-    const vs = d.variants.map(v => {
-        const flags = (v.flags || []).map(f => '<div style="color:#b45309;font-size:12px">&#9888; ' + esc(f) + "</div>").join("");
-        const open = (v.flags || []).some(f => f.indexOf("unsupported claim") === 0);
-        return '<div class="adv" style="margin:8px 0">' +
-            '<input type="text" class="h" maxlength="40" value="' + esc(v.headline) + '" style="width:100%;font-weight:bold">' +
-            '<input type="text" class="t" maxlength="125" value="' + esc(v.text) + '" style="width:100%">' +
-            '<input type="hidden" class="c" value="' + esc(v.cta || "Shop Now") + '">' +
-            (v.blocked ? ' <b style="color:#c00">BLOCKED: edit or remove this line</b>' : "") + flags +
-            (open ? '<label style="font-size:12px"><input type="checkbox" class="ok"' + (v.confirmed ? " checked" : "") +
-                '> I confirm these claims are true</label> ' : "") +
-            '<button onclick="this.closest(\'.adv\').remove()">Remove line</button></div>';
-    }).join("");
-    return '<div style="display:flex;gap:14px;align-items:flex-start">' +
-        (d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;flex:none">' : "") +
-        '<div style="flex:1"><small>' + esc(d.product_name) + (d.image_source ? " &middot; image: " + esc(d.image_source) : "") + "</small>" + vs +
-        '<label style="font-size:13px">Daily budget Rs <input type="number" class="bud" min="1" value="' + d.daily_budget + '" style="width:80px"></label> ' +
-        '<button onclick="saveAd(' + p.id + ')">Save changes</button></div></div>';
-}
+            if (p.kind === "ad_draft") {
+                const d = p.payload;
+                const vs = d.variants.map((v, oi) => {
+                    const flags = (v.flags || []).map(f => '<div style="color:#b45309;font-size:12px">&#9888; ' + esc(f) + "</div>").join("");
+                    const open = (v.flags || []).some(f => f.indexOf("unsupported claim") === 0);
+                    return '<div class="adv" data-orig="' + oi + '" style="margin:8px 0">' +
+                        '<input type="text" class="h" maxlength="40" value="' + esc(v.headline) + '" style="width:100%;font-weight:bold">' +
+                        '<input type="text" class="t" maxlength="125" value="' + esc(v.text) + '" style="width:100%">' +
+                        '<input type="hidden" class="c" value="' + esc(v.cta || "Shop Now") + '">' +
+                        (v.blocked ? ' <b style="color:#c00">BLOCKED: edit or remove this line</b>' : "") + flags +
+                        (open ? '<label style="font-size:12px"><input type="checkbox" class="ok"' + (v.confirmed ? " checked" : "") +
+                            '> I confirm these claims are true</label> ' : "") +
+                        '<button onclick="this.closest(\'.adv\').remove()">Remove line</button></div>';
+                }).join("");
+                return '<div style="display:flex;gap:14px;align-items:flex-start">' +
+                    (d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;flex:none">' : "") +
+                    '<div style="flex:1"><small>' + esc(d.product_name) + (d.image_source ? " &middot; image: " + esc(d.image_source) : "") + "</small>" + vs +
+                    '<label style="font-size:13px">Daily budget Rs <input type="number" class="bud" min="1" value="' + d.daily_budget + '" style="width:80px"></label> ' +
+                    '<button onclick="saveAd(' + p.id + ')">Save changes</button></div></div>';
+            }
             if (p.kind === "catalog_draft") return "<small>" + p.payload.items.length + " catalog items</small>";
             return "<small>" + esc(JSON.stringify(p.payload)).slice(0, 200) + "</small>";
         }
@@ -547,28 +557,35 @@ if (p.kind === "ad_draft") {
         }
 
         async function saveAd(pid, quiet) {
-    const card = document.querySelector('.prop[data-pid="' + pid + '"]');
-    if (!card || !card.querySelector(".bud")) return true;
-    const variants = [...card.querySelectorAll(".adv")].map(el => ({
-        headline: el.querySelector(".h").value, text: el.querySelector(".t").value,
-        cta: el.querySelector(".c").value, confirmed: !!(el.querySelector(".ok") || {}).checked,
-    }));
-    const r = await fetch("/ads/draft/" + pid, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variants, daily_budget: parseFloat(card.querySelector(".bud").value) }),
-    });
-    if (!r.ok) { say("Failed: " + await r.text(), true); return false; }
-    if (!quiet) { say("Ad #" + pid + " saved."); loadQueue(); loadAudit(); }
-    return true;
-}
+            const card = document.querySelector('.prop[data-pid="' + pid + '"]');
+            if (!card || !card.querySelector(".bud")) return true;
+            const variants = [...card.querySelectorAll(".adv")].map(el => ({
+                headline: el.querySelector(".h").value, text: el.querySelector(".t").value,
+                cta: el.querySelector(".c").value, confirmed: !!(el.querySelector(".ok") || {}).checked,
+                orig: parseInt(el.dataset.orig, 10),
+            }));
+            const r = await fetch("/ads/draft/" + pid, {
+                method: "PUT", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ variants, daily_budget: parseFloat(card.querySelector(".bud").value) }),
+            });
+            if (!r.ok) { say("Failed: " + await errText(r), true); return false; }
+            if (!quiet) { say("Ad #" + pid + " saved."); loadQueue(); loadAudit(); }
+            return true;
+        }
 
-async function decide(id, action) {
-    if (action === "approve" && !(await saveAd(id, true))) return;
-    const r = await fetch("/proposals/" + id + "/" + action, { method: "POST" });
-    const word = action === "approve" ? "approved" : "rejected";
-    say(r.ok ? "Proposal #" + id + " " + word + "." : "Failed: " + await r.text(), !r.ok);
-    loadQueue(); loadAudit();
-}
+        async function decide(id, action) {
+            if (action === "approve" && !(await saveAd(id, true))) return;
+            const r = await fetch("/proposals/" + id + "/" + action, { method: "POST" });
+            const word = action === "approve" ? "approved" : "rejected";
+            if (r.ok) {
+                const d = await r.json();
+                const extra = d.added !== undefined
+                    ? " " + d.added + " added" + (d.skipped ? ", " + d.skipped + " already in your catalog" : "") + "." : "";
+                say("Proposal #" + id + " " + word + "." + extra);
+                loadProducts();
+            } else say("Failed: " + await errText(r), true);
+            loadQueue(); loadAudit();
+        }
 
         async function loadAudit() {
             const r = await fetch("/audit?limit=15");
@@ -578,11 +595,6 @@ async function decide(id, action) {
                 esc(a.action) + "</td><td>" + esc(a.detail || "") + "</td></tr>").join("");
         }
 
-        loadAudit();
-        loadQueue();
-        loadProducts();
-        loadShop();
-
         async function genAd(productId) {
             say("Writing ad copy and making the image... about 20 seconds.");
             try {
@@ -591,11 +603,16 @@ async function decide(id, action) {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ product_id: productId, daily_budget: 200, use_real_photo: $("realPhoto").checked }),
                 });
-                if (!r.ok) throw new Error(await r.text());
+                if (!r.ok) throw new Error(await errText(r));
                 say("Ad draft added to the queue.");
                 loadQueue(); loadAudit();
             } catch (e) { say("Failed: " + e.message, true); }
         }
+
+        loadAudit();
+        loadQueue();
+        loadProducts();
+        loadShop();
     </script>
 </body>
 

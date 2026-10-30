@@ -1,12 +1,12 @@
 import json
+import shutil
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.db import get_conn
 from app.audit import log
-from app.budget import check_budget
+from app.budget import check_budget, check_total
 from app.products import create_product
-import shutil
-from pathlib import Path
 
 router = APIRouter()
 
@@ -15,7 +15,6 @@ PHOTOS_DIR = Path("data/photos")
 
 
 def _num(v) -> float | None:
-    """A non-negative number from owner input like '899' or 899.5, else None."""
     if v is None or v == "" or isinstance(v, bool):
         return None
     try:
@@ -26,10 +25,6 @@ def _num(v) -> float | None:
 
 
 def _save_photo(frame_path, product_id: int) -> str | None:
-    """Keep the chosen frame with the product, because the next upload replaces data/frames.
-
-    The path comes from an editable draft, so only files inside data/frames are copied.
-    """
     if not isinstance(frame_path, str) or not frame_path:
         return None
     try:
@@ -44,7 +39,7 @@ def _save_photo(frame_path, product_id: int) -> str | None:
 
 
 class ProposalIn(BaseModel):
-    kind: str          # e.g. "catalog_draft", "promotion", "ad_draft"
+    kind: str
     payload: dict
 
 
@@ -81,6 +76,7 @@ def _decide(pid: int, status: str):
         if status == "approved" and row["kind"] == "ad_draft":
             ad = json.loads(row["payload"])
             check_budget(ad)
+            check_total(conn, float(ad.get("daily_budget") or 0), exclude_id=pid)
             variants = ad.get("variants", [])
             if not variants:
                 raise HTTPException(400, "This ad has no copy left. Add or regenerate it.")
@@ -101,10 +97,17 @@ def _decide(pid: int, status: str):
         )
         if status == "approved" and row["kind"] == "catalog_draft":
             items = json.loads(row["payload"]).get("items", [])
-            added = 0
+            added = skipped = 0
             for it in items:
                 name = (it.get("name") or "").strip() if isinstance(it.get("name"), str) else ""
                 if not name:
+                    continue
+                brand = (it.get("brand") or "").strip() if isinstance(it.get("brand"), str) else ""
+                if conn.execute(
+                    "SELECT 1 FROM products WHERE lower(name) = lower(?) AND lower(COALESCE(brand, '')) = lower(?) AND price IS ?",
+                    (name, brand, _num(it.get("price"))),
+                ).fetchone():
+                    skipped += 1
                     continue
                 colour = (it.get("colour") or "").strip() if isinstance(it.get("colour"), str) else ""
                 raw_attrs = it.get("attrs") if isinstance(it.get("attrs"), dict) else {}
@@ -114,7 +117,7 @@ def _decide(pid: int, status: str):
                     attrs["colour"] = colour
                 description = it.get("description").strip() if isinstance(it.get("description"), str) else ""
                 new_id = create_product(
-                    conn, name, brand=it.get("brand"), category=it.get("category"),
+                    conn, name, brand=brand or None, category=it.get("category"),
                     description=description or None,
                     price=_num(it.get("price")), cost=_num(it.get("cost")),
                     stock=int(_num(it.get("stock")) or 0),
@@ -126,7 +129,8 @@ def _decide(pid: int, status: str):
                 added += 1
     log("owner", f"proposal_{status}", f"id={pid}")
     if status == "approved" and row["kind"] == "catalog_draft":
-        log("owner", "catalog_imported", f"proposal={pid} products={added}")
+        log("owner", "catalog_imported", f"proposal={pid} products={added} skipped={skipped}")
+        return {"id": pid, "status": status, "added": added, "skipped": skipped}
     return {"id": pid, "status": status}
 
 

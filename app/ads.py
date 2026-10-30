@@ -6,10 +6,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.db import get_conn
 from app.audit import log
-from app.model_client import ask, generate_image,edit_image
+from app.model_client import ask, generate_image, edit_image
 from app.catalog import parse_json_list
 from app.budget import check_budget
 from app.policy import check_variants, RULES
+from app import shop_config
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
@@ -20,20 +21,13 @@ Price: Rs {price}
 Verified facts (the ONLY facts you may state): {facts}
 Each variant must use a different angle (for example: everyday use, gifting,
 treat yourself). Be warm and specific, mention the product by name.
-Do not describe fabric, softness, comfort, fit, quality, durability or any other
-physical attribute unless it is in the verified facts.
-Allowed: lifestyle language about when, where and for whom it is worn or used.
+Do not describe material, taste, scent, ingredients, texture, size, comfort, quality,
+durability or any other physical attribute unless it is in the verified facts.
+Allowed: lifestyle language about when, where and for whom it is used.
 Not allowed: health or medical claims, guarantees, fake discounts or urgency,
 invented reviews, statistics, "best" or "#1".
 Return ONLY a JSON array, no other text. Each item:
 {{"headline": "max 40 characters", "text": "max 125 characters", "cta": "Shop Now"}}"""
-
-SCENES = {
-    "kurta": "draped over a carved wooden chair beside a sunlit arched window",
-    "saree": "flowing with soft fabric movement against a warm terracotta wall",
-    "jeans": "folded on a weathered leather bench in an urban loft at dusk",
-    "shirt": "hanging on a brass rail in a sunlit boutique",
-}
 
 
 class AdIn(BaseModel):
@@ -48,8 +42,9 @@ class DraftEdit(BaseModel):
 
 
 def pretty_name(name: str) -> str:
+    words = [w for w in re.split(r"\s+", name) if any(c.isalpha() for c in w)]
     letters = [c for c in name if c.isalpha()]
-    if letters and all(c.isupper() for c in letters):
+    if letters and all(c.isupper() for c in letters) and all(len(re.sub(r"[^A-Za-z]", "", w)) > 3 for w in words):
         return name.title()
     return name
 
@@ -74,6 +69,8 @@ def generate(body: AdIn):
         ).fetchone()
     if not p:
         raise HTTPException(404, "Product not found")
+    if p["price"] is None or p["price"] <= 0:
+        raise HTTPException(400, "Set a price for this product before making an ad.")
 
     attrs = json.loads(p["attrs"] or "{}")
     facts = facts_for(p, attrs)
@@ -89,12 +86,14 @@ def generate(body: AdIn):
     variants = check_variants(variants, facts)
 
     image_url, image_source = None, "none"
+    reference = Path("data") / p["photo"].lstrip("/") if p["photo"] else None
     if body.use_real_photo and p["photo"]:
         image_url, image_source = p["photo"], "real photo"
     else:
         colour = (attrs.get("colour") or "").strip()
         subject = name if colour.lower() in name.lower() else f"{colour} {name}".strip()
-        scene = SCENES.get((p["category"] or "").lower(), "on an elegant textured surface that suits the product")
+        business = shop_config.load()["business_type"]
+        scene = f"styled in a natural setting that suits a {business}"
         Path("static/ads").mkdir(parents=True, exist_ok=True)
         fname = f"ad_{p['id']}_{int(time.time())}.png"
         out = f"static/ads/{fname}"
@@ -106,8 +105,6 @@ def generate(body: AdIn):
             f"Moody and aspirational, film-like grain, ultra detailed, photorealistic. "
             f"Do not invent text, logos or labels. No watermark, no people."
         )
-        reference = Path("data") / p["photo"].lstrip("/") if p["photo"] else None
-        done = False
         if reference and reference.is_file():
             try:
                 edit_image(
@@ -117,10 +114,11 @@ def generate(body: AdIn):
                     f"Place it {style}",
                     str(reference), out,
                 )
-                image_url, image_source, done = f"/static/ads/{fname}", "generated from your photo", True
+                image_url, image_source = f"/static/ads/{fname}", "generated from your photo"
             except Exception as e:
                 log("ai", "ad_edit_failed", f"product={p['id']} {str(e)[:120]}")
-        if not done:
+                image_url, image_source = p["photo"], "real photo (editing failed)"
+        else:
             try:
                 generate_image(
                     f"Cinematic commercial product photograph of this product: {subject}, the single hero subject, "
@@ -128,17 +126,16 @@ def generate(body: AdIn):
                     f"Do not add any extra bag, box or gift packaging.",
                     out,
                 )
-                image_url, image_source = f"/static/ads/{fname}", "generated"
+                image_url, image_source = f"/static/ads/{fname}", "generated (no photo, so it may not match your product)"
             except Exception as e:
                 log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
-                if p["photo"]:
-                    image_url, image_source = p["photo"], "real photo"
 
     payload = {
         "product_id": p["id"],
         "product_name": name,
         "daily_budget": body.daily_budget,
         "variants": variants,
+        "facts": facts,
         "image_url": image_url,
         "image_source": image_source,
         "photo": p["photo"],
@@ -167,27 +164,34 @@ def edit_ad_draft(pid: int, body: DraftEdit):
             payload["daily_budget"] = body.daily_budget
         if body.variants is not None:
             old = payload["variants"]
-            new = []
-            for i, v in enumerate(body.variants):
+            new, to_check = [], []
+            for v in body.variants:
                 headline = str(v.get("headline", "")).strip()[:40]
                 text = str(v.get("text", "")).strip()[:125]
                 if not headline or not text:
                     continue
-                before = old[i] if i < len(old) else {}
-                changed = (headline, text) != (before.get("headline"), before.get("text"))
-                combined = f"{headline} {text}"
-                flags = [label for pat, label in RULES if re.search(pat, combined, re.I)]
-                kept = []
-                for f in before.get("flags", []):
-                    if f.startswith("unsupported claim: "):
-                        claim = f.split(": ", 1)[1].lower()
-                        if not changed or claim in combined.lower():
-                            kept.append(f)
-                new.append({
-                    "headline": headline, "text": text, "cta": v.get("cta") or "Shop Now",
-                    "flags": flags + kept, "blocked": bool(flags),
-                    "confirmed": bool(v.get("confirmed")),
-                })
+                orig = v.get("orig")
+                before = old[orig] if isinstance(orig, int) and 0 <= orig < len(old) else None
+                changed = before is None or (headline, text) != (before.get("headline"), before.get("text"))
+                entry = {"headline": headline, "text": text, "cta": v.get("cta") or "Shop Now"}
+                if changed:
+                    entry["confirmed"] = False
+                    to_check.append(entry)
+                else:
+                    entry["flags"] = list(before.get("flags", []))
+                    entry["blocked"] = bool(before.get("blocked"))
+                    entry["confirmed"] = bool(v.get("confirmed"))
+                new.append(entry)
+            if to_check:
+                facts = payload.get("facts") or {"name": payload.get("product_name")}
+                try:
+                    check_variants(to_check, facts)
+                except Exception as e:
+                    log("ai", "ad_recheck_failed", f"id={pid} {str(e)[:120]}")
+                    for entry in to_check:
+                        flags = [label for pat, label in RULES if re.search(pat, f"{entry['headline']} {entry['text']}", re.I)]
+                        entry["flags"] = flags + ["unsupported claim: could not be checked, read this line carefully"]
+                        entry["blocked"] = bool(flags)
             payload["variants"] = new
         conn.execute("UPDATE proposals SET payload = ? WHERE id = ?", (json.dumps(payload), pid))
     log("owner", "ad_draft_edited", f"id={pid}")
