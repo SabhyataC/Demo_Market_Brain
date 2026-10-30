@@ -96,6 +96,7 @@
         #audit td {
             font-size: 13px;
         }
+                table.rep td, table.rep th { font-size: 13px; padding: 4px 8px; text-align: left; vertical-align: top; }
     </style>
 </head>
 
@@ -186,7 +187,17 @@
             <tbody id="auditRows"></tbody>
         </table>
     </div>
-
+    <div class="card">
+        <b>5. Report</b>
+        <select id="repDays" onchange="loadReport()">
+            <option value="7">Last 7 days</option>
+            <option value="1">Last 24 hours</option>
+            <option value="30">Last 30 days</option>
+        </select>
+        <button onclick="loadReport()">Refresh</button>
+        <a href="/report" target="_blank" style="font-size:13px">Raw JSON</a>
+        <div id="report"><small>Loading...</small></div>
+    </div>
     <div id="msg"></div>
 
     <script>
@@ -334,7 +345,7 @@
                 say("Done: " + (typeof ap.added === "number"
                     ? ap.added + " added" + (ap.skipped ? ", " + ap.skipped + " already in your catalog" : "") + "."
                     : clean.length + " products imported."));
-                loadProducts(); loadAudit();
+                loadProducts(); loadAudit(); loadReport();
                 $("draft").style.display = "none";
             } catch (e) { say("Failed: " + e.message, true); }
             $("approve").disabled = false;
@@ -506,7 +517,7 @@
                 const r = await fetch("/planner/run", { method: "POST" });
                 if (!r.ok) throw new Error(await errText(r));
                 say("Planner proposal added.");
-                loadQueue(); loadAudit();
+                loadQueue(); loadAudit(); loadReport();
             } catch (e) { say("Failed: " + e.message, true); }
             $("plan").disabled = false;
         }
@@ -584,7 +595,7 @@
                 say("Proposal #" + id + " " + word + "." + extra);
                 loadProducts();
             } else say("Failed: " + await errText(r), true);
-            loadQueue(); loadAudit();
+            loadQueue(); loadAudit(); loadReport();
         }
 
         async function loadAudit() {
@@ -605,13 +616,52 @@
                 });
                 if (!r.ok) throw new Error(await errText(r));
                 say("Ad draft added to the queue.");
-                loadQueue(); loadAudit();
+                loadQueue(); loadAudit(); loadReport();
             } catch (e) { say("Failed: " + e.message, true); }
+        }
+
+                async function loadReport() {
+            const box = $("report");
+            try {
+                const r = await fetch("/report?days=" + $("repDays").value);
+                if (!r.ok) throw new Error(await errText(r));
+                const d = await r.json();
+                const row = (k, v) => "<tr><td>" + esc(k) + "</td><td>" + esc(v) + "</td></tr>";
+                const num = v => (v === null || v === undefined) ? "n/a" : v;
+                const sec = v => (v === null || v === undefined) ? "n/a" : v + " s";
+                const c = d.catalog, f = c.owner_corrections, a = d.ads, m = d.model_calls;
+                const fixed = f.drafts_measured
+                    ? f.fields_changed + " of " + f.fields_total + " fields fixed, " + f.removed + " of " + f.items + " items removed"
+                    : "no edited drafts yet";
+                const purposes = Object.entries(m.by_purpose).map(([k, v]) =>
+                    "<tr><td>" + esc(k) + "</td><td>" + v.calls + (v.failed ? " (" + v.failed + " failed)" : "") + "</td><td>" +
+                    sec(v.avg_seconds) + "</td><td>" + sec(v.p95_seconds) + "</td><td>" +
+                    (m.unit_prices_set ? v.estimated_cost : "n/a") + "</td></tr>").join("");
+                box.innerHTML =
+                    "<table class='rep'>" +
+                    row("Products", d.products.total + " (" + d.products.ready_for_planner + " ready for the planner, " +
+                        d.products.missing_price + " without a price, " + d.products.missing_cost + " without a cost)") +
+                    row("Catalog drafts", c.drafts + " (" + c.approved + " approved, " + c.pending + " pending, " + c.rejected + " rejected)") +
+                    row("Products imported", c.products_imported + (c.already_in_catalog ? " (" + c.already_in_catalog + " already in the catalog)" : "")) +
+                    row("Owner corrections", fixed) +
+                    row("Planner runs", d.planner.runs) +
+                    row("Ad drafts", a.drafts + " (" + a.approved + " approved, " + a.pending + " pending, " + a.rejected + " rejected)") +
+                    row("Ad copy lines", a.copy_lines + " (" + a.lines_flagged + " flagged, " + a.lines_blocked + " blocked)") +
+                    row("Ad images", Object.entries(a.image_sources).map(([k, v]) => v + " " + k).join(", ") || "none") +
+                    row("Budget committed", "Rs " + d.spend.committed_per_day + "/day across " + d.spend.approved_ads +
+                        " approved ads (caps: Rs " + d.spend.cap_per_ad + " per ad, Rs " + d.spend.cap_total_per_day + " total)") +
+                    "</table><small>" + esc(d.spend.note) + "</small>" +
+                    "<p><b>Model calls</b>: " + m.total.calls + " (" + m.total.failed + " failed), average " + sec(m.total.avg_seconds) +
+                    ", slowest 5% over " + sec(m.total.p95_seconds) +
+                    (m.unit_prices_set ? ", estimated cost " + m.total.estimated_cost : ". Set COST_TEXT, COST_VISION and COST_IMAGE in .env to see cost.") + "</p>" +
+                    (purposes ? "<table class='rep'><tr><th>Used for</th><th>Calls</th><th>Average</th><th>Slowest 5%</th><th>Cost</th></tr>" + purposes + "</table>" : "");
+            } catch (e) { box.innerHTML = "<small>Could not load the report: " + esc(e.message) + "</small>"; }
         }
 
         loadAudit();
         loadQueue();
         loadProducts();
+        loadReport();
         loadShop();
     </script>
 </body>

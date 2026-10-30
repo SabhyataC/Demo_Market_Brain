@@ -6,6 +6,7 @@ from app.model_client import ask
 from app.catalog import parse_json_list
 
 router = APIRouter(prefix="/planner", tags=["planner"])
+from app.calllog import purpose
 
 PROMPT = """You are a marketing planner for a small shop.
 Pick exactly 3 products to promote this week.
@@ -39,7 +40,9 @@ def run_planner():
     ]
     by_id = {p["id"]: p for p in products}
 
-    picks = parse_json_list(ask(PROMPT.format(products=json.dumps(products))))
+    with purpose("planner"):
+        raw = ask(PROMPT.format(products=json.dumps(products)))
+    picks = parse_json_list(raw)
     valid, seen = [], set()
     for pk in picks:
         pid = pk.get("product_id")

@@ -12,6 +12,7 @@ from collections import Counter
 from difflib import SequenceMatcher
 from app import shop_config
 from app.model_client import ask_with_image
+from app.calllog import purpose
 
 PROMPT = """This is one frame from a video of a shelf in a {business_type}.
 Products are shown with price tags or labels.
@@ -205,7 +206,8 @@ def build_catalog(frame_paths: list[str], errors: list | None = None, notes: str
     sightings: list[dict] = []
     for path in frame_paths:
         try:
-            raw = ask_with_image(prompt, path)
+            with purpose("catalog_read"):
+                raw = ask_with_image(prompt, path)
         except Exception as e:                       # one bad call must not lose the whole video
             if errors is not None:
                 errors.append((path, str(e)[:200]))

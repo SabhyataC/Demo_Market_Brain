@@ -11,6 +11,7 @@ from app.catalog import parse_json_list
 from app.budget import check_budget
 from app.policy import check_variants, RULES
 from app import shop_config
+from app.calllog import purpose
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
@@ -76,10 +77,10 @@ def generate(body: AdIn):
     facts = facts_for(p, attrs)
     name = facts["name"]
 
-    variants = parse_json_list(
-        ask(PROMPT.format(name=name, brand=p["brand"] or "n/a", price=p["price"],
-                          facts=json.dumps(facts, ensure_ascii=False)))
-    )
+    with purpose("ad_copy"):
+        raw = ask(PROMPT.format(name=name, brand=p["brand"] or "n/a", price=p["price"],
+                                facts=json.dumps(facts, ensure_ascii=False)))
+    variants = parse_json_list(raw)
     variants = [v for v in variants if v.get("headline") and v.get("text")][:3]
     if not variants:
         raise HTTPException(502, "Model returned no usable ad copy, try again")
@@ -105,30 +106,31 @@ def generate(body: AdIn):
             f"Moody and aspirational, film-like grain, ultra detailed, photorealistic. "
             f"Do not invent text, logos or labels. No watermark, no people."
         )
-        if reference and reference.is_file():
-            try:
-                edit_image(
-                    f"Cinematic commercial product photograph. Keep the product in the reference photo exactly the same: "
-                    f"same shape, colour, pattern, material and details. Show only that one product ({subject}), as it is normally sold. "
-                    f"Remove any price tag, hanger, other items and background clutter from the reference. "
-                    f"Place it {style}",
-                    str(reference), out,
-                )
-                image_url, image_source = f"/static/ads/{fname}", "generated from your photo"
-            except Exception as e:
-                log("ai", "ad_edit_failed", f"product={p['id']} {str(e)[:120]}")
-                image_url, image_source = p["photo"], "real photo (editing failed)"
-        else:
-            try:
-                generate_image(
-                    f"Cinematic commercial product photograph of this product: {subject}, the single hero subject, "
-                    f"{style} Show only the product itself, as it is normally sold. "
-                    f"Do not add any extra bag, box or gift packaging.",
-                    out,
-                )
-                image_url, image_source = f"/static/ads/{fname}", "generated (no photo, so it may not match your product)"
-            except Exception as e:
-                log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
+        with purpose("ad_image"):
+            if reference and reference.is_file():
+                try:
+                    edit_image(
+                        f"Cinematic commercial product photograph. Keep the product in the reference photo exactly the same: "
+                        f"same shape, colour, pattern, material and details. Show only that one product ({subject}), as it is normally sold. "
+                        f"Remove any price tag, hanger, other items and background clutter from the reference. "
+                        f"Place it {style}",
+                        str(reference), out,
+                    )
+                    image_url, image_source = f"/static/ads/{fname}", "generated from your photo"
+                except Exception as e:
+                    log("ai", "ad_edit_failed", f"product={p['id']} {str(e)[:120]}")
+                    image_url, image_source = p["photo"], "real photo (editing failed)"
+            else:
+                try:
+                    generate_image(
+                        f"Cinematic commercial product photograph of this product: {subject}, the single hero subject, "
+                        f"{style} Show only the product itself, as it is normally sold. "
+                        f"Do not add any extra bag, box or gift packaging.",
+                        out,
+                    )
+                    image_url, image_source = f"/static/ads/{fname}", "generated (no photo, so it may not match your product)"
+                except Exception as e:
+                    log("ai", "ad_image_failed", f"product={p['id']} {str(e)[:120]}")
 
     payload = {
         "product_id": p["id"],

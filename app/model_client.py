@@ -1,4 +1,5 @@
 import os
+from app.calllog import timed
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -13,10 +14,12 @@ client = OpenAI(
 
 
 def ask(prompt: str) -> str:
-    resp = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    with timed("text", MODEL_NAME) as t:
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        t["resp"] = resp
     return resp.choices[0].message.content
 
 import base64
@@ -25,41 +28,48 @@ import base64
 def ask_with_image(prompt: str, image_path: str) -> str:
     with open(image_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
-    resp = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url",
-                 "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-            ],
-        }],
-    )
+    with timed("vision", MODEL_NAME) as t:
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url",
+                     "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                ],
+            }],
+        )
+        t["resp"] = resp
     return resp.choices[0].message.content
 
 def generate_image(prompt: str, out_path: str, size: str = "1024x1024") -> str:
-    resp = client.images.generate(
-        model=os.getenv("IMAGE_MODEL_NAME", "muse-image-1.0"),
-        prompt=prompt,
-        size=size,
-        response_format="b64_json",
-        extra_body={"output_format": "png"},
-    )
+    model = os.getenv("IMAGE_MODEL_NAME", "muse-image-1.0")
+    with timed("image_generate", model) as t:
+        resp = client.images.generate(
+            model=model,
+            prompt=prompt,
+            size=size,
+            response_format="b64_json",
+            extra_body={"output_format": "png"},
+        )
+        t["resp"] = resp
     with open(out_path, "wb") as f:
         f.write(base64.b64decode(resp.data[0].b64_json))
     return out_path
 
 def edit_image(prompt: str, reference_path: str, out_path: str, size: str = "1024x1024") -> str:
-    with open(reference_path, "rb") as f:
+    model = os.getenv("IMAGE_MODEL_NAME", "muse-image-1.0")
+    with open(reference_path, "rb") as f, timed("image_edit", model) as t:
         resp = client.images.edit(
-            model=os.getenv("IMAGE_MODEL_NAME", "muse-image-1.0"),
+            model=model,
             image=f,
             prompt=prompt,
             size=size,
             response_format="b64_json",
             extra_body={"output_format": "png"},
         )
+        t["resp"] = resp
     with open(out_path, "wb") as f:
         f.write(base64.b64decode(resp.data[0].b64_json))
     return out_path

@@ -2,6 +2,7 @@ import json
 import re
 from app.model_client import ask
 from app.catalog import parse_json_list
+from app.calllog import purpose
 
 RULES = [
     (r"\b(cure|cures|heal|heals|prevent|prevents|clinically|dermatologist|doctor)\b", "medical claim"),
@@ -28,7 +29,9 @@ def check_variants(variants: list[dict], facts: dict) -> list[dict]:
         v["flags"] = [label for pat, label in RULES if re.search(pat, t, re.I)]
         v["blocked"] = bool(v["flags"])
     listing = json.dumps([{"index": i, "text": t} for i, t in enumerate(texts)])
-    result = parse_json_list(ask(CHECK_PROMPT.format(facts=json.dumps(facts), variants=listing)))
+    with purpose("policy_check"):
+        raw = ask(CHECK_PROMPT.format(facts=json.dumps(facts), variants=listing))
+    result = parse_json_list(raw)
     for r in result:
         i = r.get("index")
         if isinstance(i, int) and 0 <= i < len(variants):

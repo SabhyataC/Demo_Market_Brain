@@ -20,7 +20,20 @@ def _check_old_format(conn):
             "data/app.db is in the old format (products had no variants). "
             "It only holds test data: delete data/app.db and start the server again."
         )
-
+MODEL_CALLS_SQL = """
+CREATE TABLE IF NOT EXISTS model_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT DEFAULT CURRENT_TIMESTAMP,
+    kind TEXT NOT NULL,          -- text, vision, image_generate, image_edit
+    purpose TEXT NOT NULL DEFAULT '',
+    model TEXT,
+    seconds REAL,
+    ok INTEGER NOT NULL,
+    error TEXT,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER
+);
+"""
 
 def init_db():
     with get_conn() as conn:
@@ -69,3 +82,4 @@ def init_db():
             detail TEXT
         );
         """)
+        conn.executescript(MODEL_CALLS_SQL)
