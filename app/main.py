@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.shop_config import router as config_router
 from pathlib import Path
 from app.report import router as report_router
+from app.meta_draft import router as meta_router
 
 
 @asynccontextmanager
@@ -26,6 +27,7 @@ app.include_router(planner_router)
 app.include_router(ads_router)
 app.include_router(config_router)
 app.include_router(report_router)
+app.include_router(meta_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 for _d in ("data/frames", "data/photos"):          # frames for the review screen, photos kept with products
     Path(_d).mkdir(parents=True, exist_ok=True)

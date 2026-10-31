@@ -11,6 +11,7 @@ from app.catalog import parse_json_list
 from app.budget import check_budget
 from app.policy import check_variants, RULES
 from app import shop_config
+from app.meta_draft import clean_link
 from app.calllog import purpose
 
 router = APIRouter(prefix="/ads", tags=["ads"])
@@ -40,6 +41,7 @@ class AdIn(BaseModel):
 class DraftEdit(BaseModel):
     daily_budget: float | None = None
     variants: list[dict] | None = None
+    link: str | None = None
 
 
 def pretty_name(name: str) -> str:
@@ -164,6 +166,8 @@ def edit_ad_draft(pid: int, body: DraftEdit):
         if body.daily_budget is not None:
             check_budget({"daily_budget": body.daily_budget})
             payload["daily_budget"] = body.daily_budget
+        if body.link is not None:
+            payload["link"] = clean_link(body.link)
         if body.variants is not None:
             old = payload["variants"]
             new, to_check = [], []

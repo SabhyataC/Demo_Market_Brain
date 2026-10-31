@@ -7,6 +7,7 @@ from app.db import get_conn
 from app.audit import log
 from app.budget import check_budget, check_total
 from app.products import create_product
+from app.meta_draft import build_meta_draft
 
 router = APIRouter()
 
@@ -95,6 +96,9 @@ def _decide(pid: int, status: str):
             "UPDATE proposals SET status = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
             (status, pid),
         )
+        if status == "approved" and row["kind"] == "ad_draft":
+            ad["meta_draft"] = build_meta_draft(ad)       # what would be sent, kept as a PAUSED draft
+            conn.execute("UPDATE proposals SET payload = ? WHERE id = ?", (json.dumps(ad), pid))
         if status == "approved" and row["kind"] == "catalog_draft":
             items = json.loads(row["payload"]).get("items", [])
             added = skipped = 0
@@ -131,6 +135,9 @@ def _decide(pid: int, status: str):
     if status == "approved" and row["kind"] == "catalog_draft":
         log("owner", "catalog_imported", f"proposal={pid} products={added} skipped={skipped}")
         return {"id": pid, "status": status, "added": added, "skipped": skipped}
+    if status == "approved" and row["kind"] == "ad_draft":
+        log("ai", "meta_draft_saved", f"id={pid} PAUSED, not sent to Meta")
+        return {"id": pid, "status": status, "meta_draft": "saved as a paused draft, not sent to Meta"}
     return {"id": pid, "status": status}
 
 

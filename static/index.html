@@ -173,6 +173,13 @@
     </div>
 
     <div class="card">
+        <b>Meta drafts</b>
+        <button onclick="loadMeta()">Refresh</button>
+        <p><small>Every approved ad is kept here as a PAUSED draft. Nothing is sent to Meta. Download the ad pack to upload it yourself in Ads Manager.</small></p>
+        <div id="metaDrafts"><small>Loading...</small></div>
+    </div>
+
+    <div class="card">
         <b>4. Audit log</b>
         <button onclick="loadAudit()">Refresh</button>
         <table id="audit">
@@ -546,6 +553,7 @@
                     (d.image_url ? '<img src="' + d.image_url + '" style="width:180px;border-radius:8px;flex:none">' : "") +
                     '<div style="flex:1"><small>' + esc(d.product_name) + (d.image_source ? " &middot; image: " + esc(d.image_source) : "") + "</small>" + vs +
                     '<label style="font-size:13px">Daily budget Rs <input type="number" class="bud" min="1" value="' + d.daily_budget + '" style="width:80px"></label> ' +
+                    '<label style="font-size:13px">Landing link <input type="text" class="lnk" placeholder="https://your-shop.com/product" value="' + esc(d.link || "") + '" style="width:260px"></label> ' +
                     '<button onclick="saveAd(' + p.id + ')">Save changes</button></div></div>';
             }
             if (p.kind === "catalog_draft") return "<small>" + p.payload.items.length + " catalog items</small>";
@@ -577,7 +585,7 @@
             }));
             const r = await fetch("/ads/draft/" + pid, {
                 method: "PUT", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ variants, daily_budget: parseFloat(card.querySelector(".bud").value) }),
+                body: JSON.stringify({ variants, daily_budget: parseFloat(card.querySelector(".bud").value), link: card.querySelector(".lnk").value }),
             });
             if (!r.ok) { say("Failed: " + await errText(r), true); return false; }
             if (!quiet) { say("Ad #" + pid + " saved."); loadQueue(); loadAudit(); }
@@ -592,10 +600,10 @@
                 const d = await r.json();
                 const extra = d.added !== undefined
                     ? " " + d.added + " added" + (d.skipped ? ", " + d.skipped + " already in your catalog" : "") + "." : "";
-                say("Proposal #" + id + " " + word + "." + extra);
+                say("Proposal #" + id + " " + word + "." + (d.meta_draft ? " Saved as a paused draft, not sent to Meta." : extra));
                 loadProducts();
             } else say("Failed: " + await errText(r), true);
-            loadQueue(); loadAudit(); loadReport();
+            loadQueue(); loadAudit(); loadReport(); loadMeta();
         }
 
         async function loadAudit() {
@@ -620,7 +628,29 @@
             } catch (e) { say("Failed: " + e.message, true); }
         }
 
-                async function loadReport() {
+                async function loadMeta() {
+            const box = $("metaDrafts");
+            try {
+                const r = await fetch("/meta/drafts");
+                if (!r.ok) throw new Error(await errText(r));
+                const list = await r.json();
+                if (!list.length) { box.innerHTML = "<small>No approved ads yet.</small>"; return; }
+                box.innerHTML = list.map(m => {
+                    const d = m.meta_draft, miss = (d.missing || []).map(x => '<div style="color:#b45309;font-size:12px">&#9888; Missing: ' + esc(x) + "</div>").join("");
+                    const lines = d.creative.lines.map(l => "<div><b>" + esc(l.headline) + "</b> " + esc(l.text) + " <small>[" + esc(l.cta) + "]</small></div>").join("");
+                    return '<div class="prop" style="display:flex;gap:14px;align-items:flex-start">' +
+                        (m.image_url ? '<img src="' + esc(m.image_url) + '" style="width:90px;border-radius:8px;flex:none">' : "") +
+                        '<div style="flex:1"><b>' + esc(m.product_name) + "</b> &middot; Rs " + esc(m.daily_budget) + "/day " +
+                        '<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:12px">PAUSED draft, not sent to Meta</span><br>' +
+                        "<small>Placements: " + esc(d.ad_set.placements.join(", ")) + " &middot; Link: " + esc(m.link || "none") + "</small>" +
+                        lines + miss +
+                        '<a href="/meta/drafts/' + m.proposal_id + '/pack"><button>Download ad pack</button></a> ' +
+                        "<details><summary><small>Show draft details</small></summary><pre style='font-size:12px;white-space:pre-wrap'>" + esc(JSON.stringify(d, null, 2)) + "</pre></details></div></div>";
+                }).join("");
+            } catch (e) { box.innerHTML = "<small>Could not load Meta drafts: " + esc(e.message) + "</small>"; }
+        }
+
+        async function loadReport() {
             const box = $("report");
             try {
                 const r = await fetch("/report?days=" + $("repDays").value);
@@ -647,6 +677,7 @@
                     row("Planner runs", d.planner.runs) +
                     row("Ad drafts", a.drafts + " (" + a.approved + " approved, " + a.pending + " pending, " + a.rejected + " rejected)") +
                     row("Ad copy lines", a.copy_lines + " (" + a.lines_flagged + " flagged, " + a.lines_blocked + " blocked)") +
+                    row("Meta drafts", a.meta_drafts + " saved as paused drafts, 0 sent to Meta") +
                     row("Ad images", Object.entries(a.image_sources).map(([k, v]) => v + " " + k).join(", ") || "none") +
                     row("Budget committed", "Rs " + d.spend.committed_per_day + "/day across " + d.spend.approved_ads +
                         " approved ads (caps: Rs " + d.spend.cap_per_ad + " per ad, Rs " + d.spend.cap_total_per_day + " total)") +
@@ -662,6 +693,7 @@
         loadQueue();
         loadProducts();
         loadReport();
+        loadMeta();
         loadShop();
     </script>
 </body>

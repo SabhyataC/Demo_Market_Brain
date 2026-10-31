@@ -99,19 +99,21 @@ def report(days: int = 7):
         }
 
         ads_rows = by("ad_draft")
-        lines = flagged = blocked = 0
+        lines = flagged = blocked = meta_drafts = 0
         sources: dict[str, int] = {}
         for r in ads_rows:
             pl = json.loads(r["payload"])
             src = (pl.get("image_source") or "none").split(" (")[0]
             sources[src] = sources.get(src, 0) + 1
+            if r["status"] == "approved" and pl.get("meta_draft"):
+                meta_drafts += 1
             for v in pl.get("variants", []):
                 lines += 1
                 flagged += 1 if v.get("flags") else 0
                 blocked += 1 if v.get("blocked") else 0
         ads = {"drafts": len(ads_rows), "approved": count(ads_rows, "approved"), "rejected": count(ads_rows, "rejected"),
                "pending": count(ads_rows, "pending"), "copy_lines": lines, "lines_flagged": flagged,
-               "lines_blocked": blocked, "image_sources": sources}
+               "lines_blocked": blocked, "image_sources": sources, "meta_drafts": meta_drafts}
 
         # standing commitment: every ad that is approved right now
         approved = conn.execute("SELECT payload FROM proposals WHERE kind = 'ad_draft' AND status = 'approved'").fetchall()
